@@ -1,0 +1,20 @@
+[
+  {
+    "text": "lebron",
+    "id": "001",
+    "income":"2000",
+    "height":"203cm"
+  },
+  {
+    "text": "wede",
+    "id": "002",
+    "income":"1500",
+    "height":"198cm"
+  },
+   {
+    "text": "kobi",
+    "id": "003",
+    "income":"1800",
+    "height":"196cm"
+  }
+]

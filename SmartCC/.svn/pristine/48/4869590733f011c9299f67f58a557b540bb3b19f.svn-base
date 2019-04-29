@@ -1,0 +1,71 @@
+package com.lzc.demo.util;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+public class PythonUtil {
+	public String findPathProcessByPython(String paramJson){
+		//python文件的存放路径 与当前类一致
+		String pythonFilePath = this.getClass().getResource("").getPath();
+		//由于java传到python中时python会过滤掉其中的 双引号 这里进行替换处理  然后再python中再处理处理一下
+		paramJson = paramJson.replace('"', '#');
+		//根据配置文件获取python文件所在路径
+		String pythonPath = PropertiesUtil.props.getProperty("pythonPath");
+		String workerListFilePath = PropertiesUtil.props.getProperty("workerListFilePath");
+		String[] args1 = new String[] { "python", pythonPath, paramJson,workerListFilePath};  
+		Process pr;
+		String line;
+		
+		try {
+			pr = Runtime.getRuntime().exec(args1);
+			BufferedReader in = new BufferedReader(new InputStreamReader(pr.getInputStream()));
+			
+	            //while ((line = in.readLine()) != null) {
+	               // line = decodeUnicode(line);
+	                //System.out.println("python response:" + line);
+	           // }
+	        line=in.readLine();
+	        in.close();
+	        pr.waitFor();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return "";
+		}
+		System.out.println("response from python:" + line);
+		return line;
+	}
+	/**
+	 * 从python获得分配结果
+	 * @param paramJson
+	 * @return
+	 */
+	public String getDivisionResultFromPython(String paramJson,String workerNum,String mapPath){
+		//由于java传到python中时python会过滤掉其中的 双引号 这里进行替换处理  然后再python中再处理处理一下
+		paramJson = paramJson.replace('"', '#');
+		//根据配置文件获取python文件所在路径
+		String pythonPath = PropertiesUtil.props.getProperty("pythonPath1");
+		String[] args1 = new String[] { "python", pythonPath, paramJson,workerNum,mapPath};  
+		Process pr;
+		 String line;
+		
+		try {
+			pr = Runtime.getRuntime().exec(args1);
+			BufferedReader in = new BufferedReader(new InputStreamReader(pr.getInputStream()));
+			
+	            //while ((line = in.readLine()) != null) {
+	               // line = decodeUnicode(line);
+	                //System.out.println("python response:" + line);
+	           // }
+	        line=in.readLine();
+	        in.close();
+	        pr.waitFor();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return "";
+		}
+		System.out.println("response from python:" + line);
+		return line;
+	}
+}

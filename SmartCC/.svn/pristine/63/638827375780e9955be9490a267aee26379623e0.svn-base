@@ -1,0 +1,420 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=gb2312" />
+<title>Path optimization</title>
+<script type="text/javascript" src="js/jquery-1.8.3.min.js"></script>
+	<script type="text/javascript" src="js/pathOptimization.js"></script>
+<script type="text/javascript">
+ 
+
+var AStar = function () {
+    this.tmin = -1;   //上部搜索最小值(不包括)
+    this.rmax = -1;   //右部搜索最大值(不包括)
+    this.bmax = -1;   //下部搜索最大值(不包括)
+    this.lmin = -1;   //左部搜索最小值(不包括)
+    this.initialize();
+};
+
+AStar.prototype = {
+
+    constructor : AStar
+    
+    , pointSource : function () {
+    //获取点对象构造的引用
+        return this.constructor.Point;
+    }
+    
+    , euclidean : function (a, b) {
+        with (Math) { return round(10 * sqrt(pow(a.X - b.X, 2) + pow(a.Y - b.Y, 2))); }
+    }
+    
+    , manhattan : function (a, b) {
+        with (Math) { return abs(a.X - b.X) + abs(a.Y - b.Y); }
+    }
+    
+    , initialize : function () {
+    //初始化参数
+        this.open = [];   //open表
+        this.close = [];  //close表
+        this.maps = {};  //已经发现点组
+    }
+    
+    , makeID : function (x, y, limit) {
+    //创造ID
+        return x + y * limit;
+    }
+    
+    , getMinNode : function () {
+    //获取最佳节点
+        var i = 1, o = this.open, l = o.length, min = i - 1, max = o[0].F, t = null;
+
+        for (; i < l ; i ++) {
+            t = o[i];
+            if (t.F < max) { max = t.F, min = i; }
+        }
+        t = o[min], o[min] = o[l - 1], o.pop();
+
+        return t;
+    }
+    
+    , getNodes : function (node) {
+    //获取子节点
+        var map = this.Map, tmin = this.tmin, rmax = this.rmax, bmax = this.bmax, lmin = this.lmin, nodes = []
+            , x = node.X, y = node.Y, t = y - 1, r = x + 1, b = y + 1, l = x - 1
+            , _t = t > tmin && (map[t][x] === 0)
+            , _r = r < rmax && (map[y][r] === 0)
+            , _b = b < bmax && (map[b][x] === 0)
+            , _l = l > lmin && (map[y][l] === 0), i = 0;
+        
+        if (_t) {
+            nodes[i++] = [x, t];
+            if (_l && (map[t][l] === 0)) nodes[i++] = [l, t];
+            if (_r && (map[t][r] === 0)) nodes[i++] = [r, t];
+        }
+        
+        if (_l) nodes[i++] = [l, y];
+        
+        if (_b) {
+            nodes[i++] = [x, b];
+            if (_l && (map[b][l] === 0)) nodes[i++] = [l, b];
+            if (_r && (map[b][r] === 0)) nodes[i++] = [r, b];
+        }
+        
+        if (_r) nodes[i++] = [r, y];
+        
+        return nodes;
+    }
+    
+    , getAllPath : function (node) {
+    //获取完整路径
+        var path = [];
+        do {
+            path[path.length] = [node.X, node.Y];
+        } while (node = node.P);
+        path.reverse(), this.initialize();
+        
+        return path;
+    }
+    
+    , loadMap : function (map) {
+    //加载地图
+        this.Map = map;
+        this.limit = (this.bmax = map.length) * (this.rmax = map[0].length);
+    }
+    
+    , search : function (start, goal) {
+    //搜索
+        
+        var Point = this.pointSource()
+            , open = this.open, close = this.close
+            , makeID = this.makeID //放创造唯一值函数的引用.这样快
+            , maps = this.maps //地图
+            , limit = this.limit //地图最大值
+            , euclidean = this.euclidean //计算代价的方法
+            , GID = makeID(goal.X, goal.Y, limit) //终点的唯一值
+            , nodes = []
+            , length = 0
+            , node = null, tempnode = null, tempg = 0
+            , id = 0, i = 0, j = 0, _i = 0, _j = 0;
+        
+        open.push(new Point(null, start.X, start.Y)); //追加启始点
+        
+        while (length = open.length) {
+            node = this.getMinNode(); //取最优点
+            
+            if (node.I != GID) { //若不是终点
+                
+                nodes = this.getNodes(node); //取该点所有所有临点
+                
+                for (i = 0, j = nodes.length ; i < j ; i ++) {
+                    id = makeID(nodes[i][0], nodes[i][1], limit); //获取临点ID
+                    
+                    if (!(tempnode = maps[id])) { //如果没有查过
+                        //创建点对象.放到open表.放到关联组
+                        tempnode = open[open.length] = maps[id] = new Point(node, nodes[i][0], nodes[i][1]);
+                        //计算代价值，估价值，总值
+                        tempnode.F =
+                            (tempnode.G = node.G + euclidean(tempnode, node)) + (tempnode.H = euclidean(tempnode, goal));
+                        tempnode.I = id; //计算唯一标识
+                    } else { //如果存在此点
+                        tempg = node.G + euclidean(tempnode, node); //计算当前点到此临点的G值
+                        
+                        //如果此G值小于此临点的G值那么把这个临点抢过来。。。然后重新初始化一些参数
+                        if (tempg < tempnode.G) tempnode.P = node, tempnode.G = tempg, tempnode.F = tempg + tempnode.H;
+                    }
+                }
+                
+                close[close.length] = node; //放入close表
+            } else {
+                return this.getAllPath(node); //已经找到最优路径.返回完整路径
+            }
+        }
+        return (this.initialize(), []); //没有找到最优路径.返回空值
+    }
+
+};
+
+AStar.Point = function (p, x, y) {
+//节点
+    this.P = p;  //父节点
+    this.X = x;  //x位置
+    this.Y = y;  //y位置
+    this.G = 0;  //g值
+    this.H = 0;  //h值
+    this.F = 0;  //f值
+    this.I = 0;  //节点唯一值
+};
+
+var getPath = function () {
+//获取路径
+    return path.length > 0 ? path.shift() : null;
+};
+
+var loadMap = function () {
+//加载地图
+    var r, c, rary, cary;
+    
+    for (rary = [], r = 0 ; r < maps.length ; r ++) {
+        for (cary = [], c = 0 ; c < maps[r].length ; c ++) {
+            if (maps[r][c] == 0) {
+                cary[c] = '#FFFFFF';
+            } else {
+                cary[c] = '#818181';
+            }
+        }
+        var str='">&nbsp;<//td><td bgColor="';
+        rary[r] = '<td bgColor="' + cary.join(str) + '">&nbsp;<//td>'
+    }
+    var element=document.getElementById("box");
+    element.innerHTML = '<table id="maps" onmousedown="mouseDown()"><tr>' + rary.join('<//tr><tr>') + '<//tr><//table>';
+};
+
+var resizeMap = function () {
+//重置地图
+    var table = document.getElementById('maps'), r, c;
+    
+    for (r = 0 ; r < table.rows.length ; r ++) {
+        for (c = 0 ; c < table.rows[r].cells.length ; c ++) {
+            table.rows[r].cells[c].bgColor = (maps[r][c] == 0 ? '#FFFFFF' : '#818181');
+        }
+    }
+};
+
+var totalPath=[];
+var runTimer;
+var goGoal = function (start, end) {
+//查找路径
+    path = wc.search(start, end);
+    document.title = 'Path optimization';
+    window.status = path.length;
+    runTimer = path;
+
+    if (path.length > 2) {
+        path = path.slice(1, -1);
+        totalPath = totalPath.concat(path);
+        //moveToGoal();
+    }
+};
+
+var continuFlg=false;
+var moveToGoal = function () {
+//设置走路:D
+    var temp;
+    if (totalPath.length > 0) {
+        temp=totalPath.shift();
+        if((document.getElementById('maps').rows[temp[1]].cells[temp[0]].bgColor).toUpperCase()=='#FFFFFF'){
+            //if($('#maps').find("tr").eq(temp[1]).find("td").eq(temp[0]).attr('bgColor')=='#FFFFFF'){
+            document.getElementById('maps').rows[temp[1]].cells[temp[0]].bgColor = '#3897D1';
+            continuFlg=true;
+        }else if((document.getElementById('maps').rows[temp[1]].cells[temp[0]].bgColor).toUpperCase()=='#3897D1'){
+            document.getElementById('maps').rows[temp[1]].cells[temp[0]].bgColor = '#3897D1';
+            continuFlg=true;
+        }
+        window.setTimeout(moveToGoal, 0);
+    }
+}
+var pointArr = [];
+var p = [
+        {"id": 1, "x": 102, "y": 40},
+        {"id": 2, "x": 103, "y": 27},
+        {"id": 3, "x": 113, "y": 20},
+        {"id": 4, "x": 114, "y": 30},
+        {"id": 5, "x": 115, "y": 37}
+    ];
+
+var pointInit = function () {
+    for (var i = 0; i < p.length; i++) {
+        document.getElementById('maps').rows[p[i].y].cells[p[i].x].bgColor = '#FF0000';
+    }
+    SetSortPoint(p);
+}
+function SetSortPoint(arry) {
+    var len = arry.length;
+    for (var i = 0; i < len - 1; i++) {
+        for (var j = 0; j < len - 1 - i; j++) {
+            if (SetSortRule(arry[j], arry[j + 1])) {
+                var tmp = arry[j+1];
+                arry[j+1] = arry[j];
+                arry[j] = tmp;
+            }
+        }
+    }
+    pointArr = arry;
+}
+
+//两个坐标比较大小
+function SetSortRule(p1, p2) {
+    if (p1.x > p2.x) {
+        return true;
+    }
+    else if (p1.x == p2.x) {
+        return (p1.y < p2.y);
+    }
+    else {
+        return false;
+    }
+}
+//todo
+var data1;
+var maps = [];
+var wc = new AStar; //创建ASatr对象
+$(document).ready(
+			function(){
+				$.post( "/SmartCC/smartCCIndex",//请求url
+				 {
+					 "method":"viewPath"//请求调用的方法
+				 },
+				 function (data){
+				//响应后移除遮罩层
+				wc.loadMap(data.mapData); //载入地图
+				maps=data.mapData;
+				data1=data;
+				//pFromSer=data.pList;
+				windowOnload();
+				},"json" );
+			}
+		);	
+function windowOnload() {
+    var sn = 0;
+    var start = {x: 0, y: 0}, end = {x: 0, y: 0};
+    //add-start congy
+    temp = {x: 0, y: 0};
+    loadMap(); //显示地图
+    
+   // var table = document.getElementById('maps');
+    pointInit();
+    };
+    
+    function optButtonClick(e) {
+        resizeMap();
+        pointInit();
+        if (pointArr != null && pointArr.length > 0) {
+            var s = {x: 0, y: 0}, e = {x: 0, y: 0};
+            for (i = 0; i < pointArr.length - 1; i++) {
+                s.X = pointArr[i].x, s.Y = pointArr[i].y;
+                e.X = pointArr[i + 1].x, e.Y = pointArr[i + 1].y;
+                goGoal(s, e);
+            }
+            moveToGoal();
+        }
+   };
+    function push2Arr(obj, arr) {
+            var point = {};
+            point['id'] = p.length + 1;
+            point['x'] = obj.cellIndex;
+            point['y'] = obj.parentNode.rowIndex;
+            arr.push(point);
+        };
+        function mouseDown(e) {
+            var e = window.event || e;
+
+            var obj = e.srcElement || e.target;
+            if (obj.nodeName == 'TD') {
+                //push2Arr(obj,p);
+                if (p != null && p.length > 0) {
+                    if (runTimer != null && runTimer.length > 0) {
+                        obj.bgColor = '#FF0000';
+    					var end = {x: 0, y: 0}, end = {x: 0, y: 0};
+                        push2Arr(obj, pointArr);
+                        temp.X = pointArr[pointArr.length - 2].x, temp.Y = pointArr[pointArr.length - 2].y;
+                        end.X = obj.cellIndex, end.Y = obj.parentNode.rowIndex;
+                        goGoal(temp, end);
+                        moveToGoal();
+                    } else {
+                        if (continuFlg) {
+                            sn = ++sn;
+                            onFirstClick(obj);
+                        } else {
+                            obj.bgColor = '#FF0000';
+                            var point = {};
+                            point['id'] = p.length + 1;
+                            point['x'] = obj.cellIndex;
+                            point['y'] = obj.parentNode.rowIndex;
+                            p.push(point);
+                            pointInit();
+                        }
+                    }
+                } else {
+                    onFirstClick(obj);
+                }
+            }
+        };
+
+        function onFirstClick(obj) {
+            if (sn) {
+                push2Arr(obj, p);
+                temp.X = p[p.length - 2].x, temp.Y = p[p.length - 2].y;
+                end.X = obj.cellIndex, end.Y = obj.parentNode.rowIndex;
+                obj.bgColor = '#FF0000';
+                goGoal(s, e);
+                moveToGoal();
+            } else {
+                obj.bgColor = '#FF0000';
+                start.X = obj.cellIndex, start.Y = obj.parentNode.rowIndex;
+                temp = start;
+                push2Arr(obj, p);
+        };
+   };
+</script>
+<style type="text/css">
+table {
+	border-left: #CCC 1px solid;
+	border-top: #CCC 1px solid;
+	border-collapse: collapse;
+}
+
+td {
+	border-right: #CCC 1px solid;
+	border-bottom: #CCC 1px solid;
+	height: 5px;
+	width: 5px;
+	font-size: 0;
+}
+
+#opt {
+	background-color: #EDEDED;
+	border: #CCC 1px solid;
+	border-radius: 4px;
+	color: #A4A4A4;
+	text-align: center;
+	text-decoration: none;
+	display: inline-block;
+	font-size: 16px;
+	cursor: pointer;
+	height: 30px;
+	width: 120px;
+	margin-bottom: 5px;
+}
+</style>
+</head>
+<body>
+	<div>
+		<button type="button" id="opt"
+			onclick="optButtonClick();return false;">optimization</button>
+		<button type="button" id="my"
+			onclick="getOptimizatePath();return false;">calcul</button>
+	</div>
+	<div id="box"></div>
+</body>
+</html>

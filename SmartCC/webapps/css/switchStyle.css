@@ -1,0 +1,73 @@
+/*Òþ²Øradio°´Å¥ diyÑùÊ½*/
+input[type="radio"] {
+	opacity: 0;
+}
+
+.myradio {
+	display: inline-block;
+	vertical-align: middle;
+	margin: 0;
+	padding: 0;
+	width: 80px;
+	height: 30px;
+	border-radius: 20px;
+	position: relative;
+	overflow: hidden;
+	background-color: #86ca7e;
+	
+}
+
+.myradio .open, .myradio .close {
+	width: 30px;
+	height: 30px;
+	font-size: 12px;
+	border-radius: 50%;
+	background: white;
+	color: white;
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+/*yuchuang 2017.5.12*/
+.myradio .open {
+	
+}
+
+.myradio .close {
+	background: #e8e8e8
+}
+
+.hidden {
+	display: none
+}
+
+.disabled {
+	pointer-events: none;
+	cursor: default;
+}
+
+.myradio .close {
+	left: auto;
+	right: 0;
+	color: #e8e8e8;
+}
+
+.myradio .open:after {
+	content: 'ON';
+	position: absolute;
+	top: 0;
+	left: 40px;
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+}
+
+.myradio .close:before {
+	content: 'OFF';
+	position: absolute;
+	top: 0;
+	left: -35px;
+	width: 30px;
+	height: 30px;
+	line-height: 30px;
+}

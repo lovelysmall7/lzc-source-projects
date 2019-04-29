@@ -1,0 +1,91 @@
+package com.lzc.demo.test;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
+
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+
+import com.lzc.demo.dao.AreaInfoMappingDao;
+import com.lzc.demo.dao.ComponentDao;
+import com.lzc.demo.dao.StationInfoDao;
+import com.lzc.demo.model.AreaInfoMapping;
+import com.lzc.demo.model.Component;
+import com.lzc.demo.model.StationInfo;
+import com.lzc.demo.util.PropertiesUtil;
+import com.lzc.demo.util.SqlMapInitUtil;
+
+public class Test {
+	public void change(String S,String Tstr){
+		StationInfoDao sDao = new StationInfoDao();
+		StationInfo sInfo = sDao.findById(S);
+		if(sInfo != null){
+			String x = sInfo.getxAxis();
+			String y = sInfo.getyAxis();
+			String[] a = Tstr.split(",");
+			for(int i = 0;i < a.length;i++){
+				String station = a[i];
+				StationInfo info = sDao.findById(station);
+				if(info != null){
+					info.setxAxis(x);
+					info.setyAxis(y);
+					sDao.update(info);
+					System.out.println(station + " 更新成功！ ");
+				}
+				else{
+					System.out.println("t: << " + station + " 数据库中不存在！");
+					StationInfo insertInfo = new StationInfo();
+					insertInfo.setId(station);
+					insertInfo.setStationName(station);
+					insertInfo.setCreateTime(new Date());
+					insertInfo.setType(1);
+					insertInfo.setxAxis(x);
+					insertInfo.setyAxis(y);
+					sDao.insert(insertInfo);
+					System.out.println(station + " 插入数据库成功！");
+				}
+			}
+		}
+		else{
+			System.out.println("S : << " + S + " 数据库中不存在！" );
+		}
+	}
+	private void importAreaStationMapping(String stationArrayStr,String areaId,int mappingType){
+		String aaa[] = stationArrayStr.split("/");
+		AreaInfoMappingDao dao = new AreaInfoMappingDao();
+		for(int i = 0;i < aaa.length;i++){
+			AreaInfoMapping a = new AreaInfoMapping();
+			a.setId(UUID.randomUUID().toString());
+			a.setAreaId(areaId);
+			a.setMappingType(mappingType);
+			a.setMappingValue(aaa[i]);
+			a.setCreateTime(new Date());
+			dao.insert(a);
+		}
+	}
+	private void formatStationInfo(){
+		StationInfoDao sDao = new StationInfoDao();
+		List<StationInfo> sList = sDao.findAll();
+		for(int i =0;i < sList.size();i++){
+			StationInfo s = sList.get(i);
+			String id = s.getId();
+			//String 
+		}
+	}
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		
+		//String p = PropertiesUtil.props.getProperty("pythonPath");
+		//System.out.println(p);
+		//new Test().change("I132","S87,S90");
+		new Test().importAreaStationMapping("K12/K14/K37/K38/K81/K91/K93/K98/P09/P30/P81/P82/P83/S03/S08/S09/S53/S54/S55/S56/S58/S59/S60/S61/S76/S77/S94/S95/S99","6",1);
+	}
+
+}

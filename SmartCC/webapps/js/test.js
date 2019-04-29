@@ -1,0 +1,3 @@
+function kkk(){
+	alert("sssdfdfdfdfd");
+}

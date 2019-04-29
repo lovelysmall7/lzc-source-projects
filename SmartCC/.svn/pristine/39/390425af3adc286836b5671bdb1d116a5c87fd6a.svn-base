@@ -1,0 +1,86 @@
+package com.lzc.demo.model;
+
+import java.util.Date;
+
+public class DivideHistoryInfo {
+	private String id;
+	private String componentName;
+	private Integer type;
+	private String workerId;
+	private String workerName;
+	private String stationIds;
+	private String stationNames;
+	private Date createTime;
+	private Integer state;
+	private String taskIds;
+	
+	private Integer orderNum;
+	
+	public Integer getOrderNum() {
+		return orderNum;
+	}
+	public void setOrderNum(Integer orderNum) {
+		this.orderNum = orderNum;
+	}
+	public String getId() {
+		return id;
+	}
+	public void setId(String id) {
+		this.id = id;
+	}
+	public String getComponentName() {
+		return componentName;
+	}
+	public void setComponentName(String componentName) {
+		this.componentName = componentName;
+	}
+	public Integer getType() {
+		return type;
+	}
+	public void setType(Integer type) {
+		this.type = type;
+	}
+	public String getWorkerId() {
+		return workerId;
+	}
+	public void setWorkerId(String workerId) {
+		this.workerId = workerId;
+	}
+	public String getWorkerName() {
+		return workerName;
+	}
+	public void setWorkerName(String workerName) {
+		this.workerName = workerName;
+	}
+	public String getStationIds() {
+		return stationIds;
+	}
+	public void setStationIds(String stationIds) {
+		this.stationIds = stationIds;
+	}
+	public String getStationNames() {
+		return stationNames;
+	}
+	public void setStationNames(String stationNames) {
+		this.stationNames = stationNames;
+	}
+	public Date getCreateTime() {
+		return createTime;
+	}
+	public void setCreateTime(Date createTime) {
+		this.createTime = createTime;
+	}
+	public Integer getState() {
+		return state;
+	}
+	public void setState(Integer state) {
+		this.state = state;
+	}
+	public String getTaskIds() {
+		return taskIds;
+	}
+	public void setTaskIds(String taskIds) {
+		this.taskIds = taskIds;
+	} 
+	
+}

@@ -1,0 +1,9 @@
+package com.lzc.demo.dao;
+
+import com.lzc.demo.model.AreaInfoMapping;
+
+public class AreaInfoMappingDao extends BaseDao< AreaInfoMapping>{
+	public AreaInfoMappingDao(){
+		setSqlNameSpace(AreaInfoMapping.class.getName());
+	}
+}

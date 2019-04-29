@@ -1,0 +1,22 @@
+package com.lzc.demo.controller.index;
+
+import java.io.IOException;
+import java.util.HashMap;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import com.lzc.demo.controller.BaseServlet;
+import com.lzc.demo.service.index.SmartCCIndexService;
+
+import net.sf.json.JSONObject;
+
+@WebServlet("/smartCCpart2")
+public class SmartCCPart2Controller  extends BaseServlet{
+	public void loadData(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		System.out.println("++++++++++++++++++++++++++++++++++++++++++++");
+	}
+}

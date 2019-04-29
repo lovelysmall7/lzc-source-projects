@@ -1,0 +1,542 @@
+package com.lzc.demo.util;
+
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.UUID;
+
+import org.apache.poi.hssf.usermodel.HSSFDateUtil;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DateUtil;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import com.lzc.demo.dao.ComponentDao;
+import com.lzc.demo.dao.DivideHistoryInfoDao;
+import com.lzc.demo.dao.StationDistanceMappingDao;
+import com.lzc.demo.dao.StationInfoDao;
+import com.lzc.demo.dao.TaskInfoDao;
+import com.lzc.demo.model.Component;
+import com.lzc.demo.model.MapInfo;
+import com.lzc.demo.model.StationDistanceMapping;
+import com.lzc.demo.model.StationInfo;
+import com.lzc.demo.model.TaskInfo;
+
+public class ExcelHelper {
+	public ExcelHelper(){
+		
+	}
+	// 读取单元格的值
+    private String getValue(Cell cell) {
+        String result = "";
+
+        switch (cell.getCellType()) {
+        case Cell.CELL_TYPE_BOOLEAN:
+            result = cell.getBooleanCellValue() + "";
+            break;
+        case Cell.CELL_TYPE_STRING:
+            result = cell.getStringCellValue();
+            break;
+        case Cell.CELL_TYPE_FORMULA:
+            result = cell.getCellFormula();
+            break;
+        case Cell.CELL_TYPE_NUMERIC:
+            // 可能是普通数字，也可能是日期
+            if (HSSFDateUtil.isCellDateFormatted(cell)) {
+                result = DateUtil.getJavaDate(cell.getNumericCellValue())
+                        .toString();
+            } else {
+                result = cell.getNumericCellValue() + "";
+            }
+            break;
+        }
+        return result;
+    }
+    /**
+     * 解析excel 返回json
+     * @param is
+     * @return
+     * @throws IOException 
+     * @throws InvalidFormatException 
+     */
+    public List<TaskInfo> analysis(InputStream is,String switchValue) throws InvalidFormatException, IOException{
+    	Workbook wb = WorkbookFactory.create(is);
+    	TaskInfoDao dao = new TaskInfoDao();
+    	ComponentDao cDao = new ComponentDao();
+    	DivideHistoryInfoDao dao1 = new DivideHistoryInfoDao();
+    	Sheet sheet = wb.getSheetAt(0);
+    	List<TaskInfo> dataList = new ArrayList<TaskInfo>();
+    	if (sheet == null) {
+            return null;
+        }
+    	TaskInfo param = new TaskInfo();
+    	//查出当日已经存在的数据
+    	List<TaskInfo> currentDayList = dao.findAllOnCurrentDay(param);
+    	if(currentDayList != null){
+    		for(int i = 0;i < currentDayList.size();i++){
+    			//开关是紧急状态不需要删除历史数据 否则需要删除历史数据
+    			if("close".equals(switchValue)){
+    				//导入新数据前将之前的数据删除
+        			if(dao.deleteByID(currentDayList.get(i).getId())){
+        				//级联删除分配历史记录
+        				dao1.deleteByTaskId(currentDayList.get(i).getId());
+        			}
+    			}
+    		}
+    	}
+    	for (int j = 1; j <= sheet.getLastRowNum(); j++) {
+            Row row = sheet.getRow(j);
+            if(row==null){
+                return null;
+            }
+            TaskInfo task = new TaskInfo();
+            String taskId = getValue(row.getCell(0));//获得每一行的任务ud
+            String componentName = getValue(row.getCell(1));//获得每一行的零件名称
+            String station = getValue(row.getCell(2));//获得每一行的工位信息
+            if(station != null){
+            	int index = station.indexOf(".");
+            	if(index != -1){
+            		station = station.substring(0,index);//去掉解析出来的“.0”
+            	}
+            }
+            //String orderNum = getValue(row.getCell(3));//顺序
+            if("".equals(taskId) || taskId == null){
+            	continue;
+            }
+            TaskInfo taskParam = new TaskInfo();
+            taskParam.setComponentName(componentName);
+            taskParam.setStationName(station);
+            TaskInfo checkExsit = dao.findOneByParamToday(taskParam);
+            //若当天上传的数据包含同样的零件和工位的任务 那么本条数据不处理
+            if(checkExsit == null){
+            	 //String type = getValue(row.getCell(2));//
+            	Component c = new Component();
+            	c.setComponentName(componentName);
+            	Component c1 = cDao.findOneByParam(c);
+            	if(c1 != null){
+            		task.setType(c1.getType());
+            	}
+                task.setComponentName(componentName);
+                task.setStationName(station);
+                task.setCreateTime(new Date());
+                task.setState(0);
+                task.setId(UUID.randomUUID().toString());
+                //若任务为紧急类型 需要重新生成任务编号
+                if(switchValue.equals("open")){
+                	int maxTaskNo = dao.selectMaxTaskNum();
+                	maxTaskNo = maxTaskNo + 1;
+                	task.setTaskNo(maxTaskNo + "");
+                }else{
+                	task.setTaskNo(j + "");
+                }
+                
+                //Double d = Double.parseDouble(orderNum);
+                task.setOrderNum(j);//12-13 lizc 更新 orderNum字段存储excel中的行号，用于调用python算法时候方便获取每种零件的第一个工位（即excel中的顺序）
+                if(dao.insert(task)){
+                	dataList.add(task);
+                }
+            }
+           
+        }
+    	return dataList;
+    }
+    /***
+     * 这种方法支持03，和07版本的excel读取
+     * 但是对于合并的单元格，除了第一行第一列之外，其他部分读取的值为空
+     * @param is
+     */
+    public void importXlsx(InputStream is) {
+        try {
+            Workbook wb = WorkbookFactory.create(is);
+            // OPCPackage pkg = OPCPackage.open(is);
+            // XSSFWorkbook wb = new XSSFWorkbook(pkg);
+            for (int i = 0, len = wb.getNumberOfSheets(); i < len; i++) {
+                Sheet sheet = wb.getSheetAt(i);
+                for (int j = 0; j <= sheet.getLastRowNum(); j++) {
+                    if (sheet == null) {
+                        return;
+                    }
+                    Row row = sheet.getRow(j);
+                    if(row==null){
+                        return;
+                    }
+                    // 读取每一个单元格
+                    for (int k = 0; k < row.getLastCellNum(); k++) {
+                        Cell cell = row.getCell(k);
+                        if (cell == null) {
+                            return;
+                        }
+                        System.out.print(getValue(cell));
+
+                    }
+                    System.out.println();
+                }
+            }
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+    
+    private Workbook wb;  
+    private Sheet sheet;  
+    private Row row;  
+  
+    public ExcelHelper(String filepath) {  
+        if(filepath==null){  
+            return;  
+        }  
+        String ext = filepath.substring(filepath.lastIndexOf("."));  
+        try {  
+            InputStream is = new FileInputStream(filepath);  
+            if(".xls".equals(ext)){  
+                wb = new HSSFWorkbook(is);  
+            }else if(".xlsx".equals(ext)){  
+                wb = new XSSFWorkbook(is);  
+            }else{  
+                wb=null;  
+            }  
+        } catch (FileNotFoundException e) {  
+        } catch (IOException e) {  
+        }  
+    }  
+      
+    /** 
+     * 读取Excel表格表头的内容 
+     *  
+     * @param InputStream 
+     * @return String 表头内容的数组 
+     * @author zengwendong 
+     */  
+    public String[] readExcelTitle() throws Exception{  
+        if(wb==null){  
+            throw new Exception("Workbook对象为空！");  
+        }  
+        sheet = wb.getSheetAt(0);  
+        row = sheet.getRow(0);  
+        // 标题总列数  
+        int colNum = row.getPhysicalNumberOfCells();  
+        System.out.println("colNum:" + colNum);  
+        String[] title = new String[colNum];  
+        for (int i = 0; i < colNum; i++) {  
+            // title[i] = getStringCellValue(row.getCell((short) i));  
+            title[i] = row.getCell(i).getCellFormula();  
+        }  
+        return title;  
+    }  
+   /**
+    * 导入工位信息
+    * @throws Exception
+    */
+   public void getStationInfoFromExcel()throws Exception{
+	   StationInfoDao dao = new StationInfoDao();
+	   if(wb==null){  
+           throw new Exception("Workbook对象为空！");  
+       }  
+	   sheet = wb.getSheetAt(2);  
+	   int rowNum = sheet.getLastRowNum();  
+       row = sheet.getRow(0);  
+       for (int i = 1; i <= rowNum; i++) {
+    	  Row rowi = sheet.getRow(i);
+    	  String stationName = (String) getCellFormatValue(rowi.getCell(0));  
+    	  String y = (String) getCellFormatValue(rowi.getCell(1));//行号即为y轴
+    	  String x = (String) getCellFormatValue(rowi.getCell(2));  //列号即为x轴
+    	  StationInfo sinf = new StationInfo();
+    	  sinf.setId(stationName);
+    	  sinf.setStationName(stationName);
+    	  sinf.setxAxis(x);
+    	  sinf.setyAxis(y);
+    	  sinf.setCreateTime(new Date());
+    	  sinf.setType(1);
+    	  
+    	  if(dao.insert(sinf)){
+    		  System.out.println("export " +  stationName + "SUCCESS");
+    	  }
+    	  else{
+    		  System.out.println("export " +  stationName + "FAIL");
+    	  }
+       }
+   }
+   /**
+    * 加载地图信息
+    * @param mapFilePath
+    */
+   public ArrayList<ArrayList<HashMap<String,Object>>> loadMapInfo(String mapFilePath){
+	   //Map<Integer, Map<Integer,Object>> content = new HashMap<Integer, Map<Integer,Object>>();  
+	   StationInfoDao dao = new StationInfoDao();
+	   ArrayList<StationInfo> sList = (ArrayList<StationInfo>) dao.findAll();
+	   sheet = wb.getSheetAt(0);  
+	// 得到总行数  
+       int rowNum = sheet.getLastRowNum();
+       row = sheet.getRow(0);  
+       int colNum = row.getPhysicalNumberOfCells(); 
+       ArrayList<ArrayList<HashMap<String,Object>>> mapinfo = new ArrayList<ArrayList<HashMap<String,Object>>>();
+       for (int i = 0; i <= rowNum; i++) {
+    	   //System.out.println("|");
+    	   Row eachRow = sheet.getRow(i); 
+    	   ArrayList<HashMap<String,Object>> colList = new ArrayList<HashMap<String,Object>>();
+    	   for(int j = 0;j < colNum;j++){
+    		   HashMap<String,Object> colDetailMap = new HashMap<String,Object>();
+    		   //获得每一列值
+    		   String colValue = (String) getCellFormatValue(eachRow.getCell(j)); 
+    		   
+    		   //System.out.print(colValue);
+    		   //0:障碍，1路径，2：工位，3：柱子
+    		   String colType = "0";
+    		   
+    		   if(".".equals(colValue)){
+    			   colType = "1";
+    		   }
+    		   //.是路径点 其余还要判断是不是工位或柱子
+			   for(int k = 0;k < sList.size();k++){
+				   StationInfo s = sList.get(k);
+				   //工位坐标从1开始  行列号从0开始  所以需要加1
+				   if((j + 1 + "").equals(s.getxAxis()) && (i + 1 + "").equals(s.getyAxis())){
+					   colValue = s.getStationName();
+    				   if(s.getType() == 0){
+    					   colType = "2";
+    				   }
+    				   if(s.getType() == 1){
+    					   colType = "3";
+    				   }
+				   }
+			   }
+    			   
+    		   //每个单元格有这个两个属性
+    		   colDetailMap.put("colType", colType);
+    		   colDetailMap.put("colValue", colValue);
+    		   //一个行里的list 有这些单元格
+    		   colList.add(colDetailMap);
+    	   }
+    	   mapinfo.add(colList);
+       }
+       return mapinfo;
+   }
+    /** 
+     * 加载地图信息
+     * 填补路径点
+     * @param InputStream 
+     * @return Map 包含单元格数据内容的Map对象 
+     * @author  
+     */  
+    public Map<Integer, Map<Integer,Object>> readMapInfo(int rowIndex,int sheetIndex) throws Exception{  
+        if(wb==null){  
+            throw new Exception("Workbook对象为空！");  
+        }  
+        Map<Integer, Map<Integer,Object>> content = new HashMap<Integer, Map<Integer,Object>>();  
+          
+        sheet = wb.getSheetAt(sheetIndex);  
+        // 得到总行数  
+        int rowNum = sheet.getLastRowNum();  
+        row = sheet.getRow(0);  
+        int colNum = row.getPhysicalNumberOfCells(); 
+        //int stationPointNum = 0;//工位数目
+        for (int i = rowIndex; i <= rowNum; i++) { 
+        	//System.out.println("读取到第：" + i + "行");
+            row = sheet.getRow(i);  
+            int j = 0;  
+            Map<Integer,Object> cellValue = new HashMap<Integer, Object>();  
+            while (j < colNum) {  
+            	if(row == null){
+            		break;
+            	}
+                String obj = (String) getCellFormatValue(row.getCell(j));  
+                cellValue.put(j, obj);  
+                
+                if("".equals(obj)){
+                	//if(i == 176){
+                		//System.out.println(";;;;;;;");
+                	//}
+                	//System.out.println(i + "++" + j);
+                	Cell cell = row.getCell(j);
+                	if(cell != null){
+                		cell.setCellValue(".");
+                	}
+                	
+                }
+               
+                j++;  
+            }  
+            content.put(i, cellValue);  
+        }  
+        FileOutputStream out = new FileOutputStream("D://output.xlsx");
+        wb.write(out);
+        out.close();
+
+        //System.out.println("校验结果一共有：" + stationPointNum + "个工位。");
+        return content;  
+    }  
+    /**
+     * 读取工位表的信息
+     * @param rowIndex
+     * @param sheetIndex
+     * @return
+     * @throws Exception
+     */
+    public Map<String, StationInfo> readStationInfo(int rowIndex,int sheetIndex) throws Exception{  
+        if(wb==null){  
+            throw new Exception("Workbook对象为空！");  
+        }  
+        StationInfoDao dao = new StationInfoDao();
+        Map<String, StationInfo> content = new HashMap<String, StationInfo>();  
+        sheet = wb.getSheetAt(sheetIndex);  
+        // 得到总行数  
+        int rowNum = sheet.getLastRowNum();  
+        row = sheet.getRow(0);  
+        //int stationPointNum = 0;//工位数目
+        for (int i = rowIndex; i <= rowNum; i++) { 
+        	//System.out.println("读取到第：" + i + "行");
+            row = sheet.getRow(i);  
+            String stationNo = (String) getCellFormatValue(row.getCell(0)); 
+            String rowNo = (String) getCellFormatValue(row.getCell(1)); 
+            String celNo = (String) getCellFormatValue(row.getCell(2)); 
+            StationInfo s = new StationInfo();
+            s.setId(stationNo);
+            s.setStationNo(stationNo);
+            s.setRowNum(rowNo);
+            s.setCelNum(celNo);
+            s.setType(1);
+            s.setCreateTime(new Date());
+            dao.insert(s);
+           // content.put((rowNo + "*" + celNo), s);  
+        }  
+        //System.out.println("校验结果一共有：" + stationPointNum + "个工位。");
+        return content;  
+    }  
+    public void readStationMappingInfo()throws Exception{
+    	StationDistanceMappingDao dao = new StationDistanceMappingDao();
+ 	   if(wb==null){  
+            throw new Exception("Workbook对象为空！");  
+        }  
+ 	   sheet = wb.getSheetAt(0);  
+ 	   int rowNum = sheet.getLastRowNum();  
+        for (int i = 1; i <= rowNum; i++) {
+     	  Row rowi = sheet.getRow(i);
+     	  String stationName1 = (String) getCellFormatValue(rowi.getCell(0));  
+     	  String stationName2 = (String) getCellFormatValue(rowi.getCell(1));  
+     	  String distance = (String) getCellFormatValue(rowi.getCell(2));  
+     	  StationDistanceMapping info = new StationDistanceMapping();
+     	 if(distance != null){
+         	int index = distance.indexOf(".");
+         	if(index != -1){
+         		distance = distance.substring(0,index);//去掉解析出来的“.0”
+         	}
+         }
+     	 info.setId(UUID.randomUUID().toString());
+     	 info.setStationA(stationName1);
+     	 info.setStationB(stationName2);
+     	 info.setDistance(Integer.parseInt(distance));
+     	 info.setCreateTime(new Date());
+     	  dao.insert(info);
+        }
+    }
+    /** 
+     *  
+     * 根据Cell类型设置数据 
+     *  
+     * @param cell 
+     * @return 
+     * @author zengwendong 
+     */  
+    private Object getCellFormatValue(Cell cell) {  
+        Object cellvalue = "";  
+        if (cell != null) {  
+            // 判断当前Cell的Type  
+            switch (cell.getCellType()) {  
+            case Cell.CELL_TYPE_NUMERIC:// 如果当前Cell的Type为NUMERIC  
+            case Cell.CELL_TYPE_FORMULA: {  
+                // 判断当前的cell是否为Date  
+                if (DateUtil.isCellDateFormatted(cell)) {  
+                    // 如果是Date类型则，转化为Data格式  
+                    // data格式是带时分秒的：2013-7-10 0:00:00  
+                    // cellvalue = cell.getDateCellValue().toLocaleString();  
+                    // data格式是不带带时分秒的：2013-7-10  
+                    Date date = cell.getDateCellValue();  
+                    cellvalue = date;  
+                } else {// 如果是纯数字  
+  
+                    // 取得当前Cell的数值  
+                    cellvalue = String.valueOf(cell.getNumericCellValue());  
+                }  
+                break;  
+            }  
+            case Cell.CELL_TYPE_STRING:// 如果当前Cell的Type为STRING  
+                // 取得当前的Cell字符串  
+                cellvalue = cell.getRichStringCellValue().getString();  
+                break;  
+            default:// 默认的Cell值  
+                cellvalue = "";  
+            }  
+        } else {  
+            cellvalue = "";  
+        }  
+        return cellvalue;  
+    }  
+    
+    public static void main(String[] args) {  
+        try {  
+            String filepath = "D:/map_v1.3.xlsx";  
+            ExcelHelper excelReader = new ExcelHelper(filepath); 
+            //excelReader.readMapInfo(0, 1);
+            excelReader.getStationInfoFromExcel();
+           // excelReader.readStationMappingInfo();
+            // 对读取Excel表格标题测试  
+//          String[] title = excelReader.readExcelTitle();  
+//          System.out.println("获得Excel表格的标题:");  
+//          for (String s : title) {  
+//              System.out.print(s + " ");  
+//          }  
+              
+            // 对读取Excel表格内容测试  
+           // Map<Integer, Map<Integer,Object>> mapInfo = excelReader.readMapInfo(0,1);  
+            //Map<String, StationInfo> stationInfo = excelReader.readStationInfo(1,2);  
+            /*Iterator<Entry<Integer, Map<Integer,Object>>> it = mapInfo.entrySet().iterator();
+            int notFountNum = 0;
+            while (it.hasNext()) {
+	            Map.Entry<Integer, Map<Integer,Object>> entry = it.next();
+	            Map<Integer,Object> mapRow = entry.getValue();
+	            Iterator<Entry<Integer,Object>> itt = mapRow.entrySet().iterator();
+	            while(itt.hasNext()){
+	            	Map.Entry<Integer,Object> mapCel = itt.next();
+	            	String value = (String) mapCel.getValue();
+	            	if("0.0".equals(value)){//发现工位点
+	            		//记录在当前地图表格中的行和列
+	            		Integer row = entry.getKey() + 1;
+	            		Integer cel = mapCel.getKey() + 1;
+	            		String keyWords = row + ".0*" + cel+".0";
+	            		//System.out.println(keyWords);
+	            		StationInfo s = stationInfo.get(keyWords);//从工位信息中检查能否取到该工位
+	            		if(s == null){
+	            			System.out.println(keyWords + "没有发现");
+	            			notFountNum ++;
+	            		}
+	            	}
+	            }
+	            
+            }*/
+
+            //System.out.println("一共：" + notFountNum);
+        } catch (FileNotFoundException e) {  
+            System.out.println("未找到指定路径的文件!");  
+            e.printStackTrace();  
+        }catch (Exception e) {  
+            e.printStackTrace();  
+        }  
+    }  
+    
+    
+}

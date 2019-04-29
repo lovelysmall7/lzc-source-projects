@@ -1,0 +1,416 @@
+<%@ page language="java" import="java.util.*" pageEncoding="utf-8"%>
+<%
+String path = request.getContextPath();
+String basePath = request.getScheme()+"://"+request.getServerName()+":"+request.getServerPort()+path+"/";
+%>
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+  <head>
+    <base href="<%=basePath%>">
+    
+    <title>Smart cycle counting</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta http-equiv="pragma" content="no-cache">
+	<meta http-equiv="cache-control" content="no-cache">
+	<meta http-equiv="expires" content="0">    
+	<meta http-equiv="keywords" content="keyword1,keyword2,keyword3">
+	<meta http-equiv="description" content="This is my page">
+	<!--
+	<link rel="stylesheet" type="text/css" href="styles.css">
+	-->
+	<link rel="stylesheet" type="text/css" href="css/easyui.css">
+	<link rel="stylesheet" type="text/css" href="css/SmartCC.css">
+	<link rel="stylesheet" type="text/css" href="css/buttonStyle.css">
+	<link rel="stylesheet" type="text/css" href="css/switch.css">
+	<link rel="stylesheet" href="css/monthSlide.css" type="text/css">
+	<link rel="stylesheet" type="text/css" href="css/switchStyle.css">
+	<script type="text/javascript" src="js/echarData.js"></script>
+	<script type="text/javascript" src="js/jquery-1.8.3.min.js"></script>
+	<script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+	<script type="text/javascript" src="js/jquery-form.js"></script>
+	<script type="text/javascript" src="js/echarts.min.js"></script>
+	<script type="text/javascript" src="js/iradio.js"></script>
+	<script type="text/javascript" src="js/pathOptimization.js"></script>
+	<script type="text/javascript" src="js/SmartCC_EN_01.js"></script>
+	
+	<style type="text/css">
+		*{margin:0;padding:0;list-style:none;}
+		img{border:0;}
+		a{text-decoration:none;color:#333;}
+		a:hover{color:#1974A1;}
+		body {font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;}
+	</style>
+<script type="text/javascript">
+
+$(document).ready(function (){
+//分配人员提交按钮响应
+	$("#submitSchemeBtn").click(function(){
+		submitScheme();
+	});
+	//iradio();//控制开关的方法
+	loadPersonList();//加载人员列表	
+	loadData();//加载数据
+	$('#cc').combobox({    
+    	onChange : function(n,o){searchDivisionResult();}  
+	});
+	$('#searchState').combobox({    
+    	onChange : function(n,o){searchDivisionResult();}  
+	});
+	$('#searchBatchNo').combobox({    
+    	onChange : function(n,o){searchTaskInfo();}  
+	});
+	$('#searchType').combobox({    
+    	onChange : function(n,o){searchTaskInfo();}  
+	});
+	$("#emergencyBtn").click(function(){
+		$('#dlg').dialog('open').dialog('setTitle', 'Emergency');
+		$('#fm').form('clear');
+		$("#one").prop( "checked", true );
+	});
+	//上传文件按钮响应
+	$("#uploadBtn").click(function (){
+	//添加加载遮罩层
+		uploadTasks();
+	});
+	$('#searchGroup').combobox({    
+    	onChange : function(n,o){
+    		
+    		searchPersonByGroup();
+    	}  
+	});
+	 var data1 = $('#searchGroup').combobox('getData');
+ 	$('#searchGroup').combobox('select',data1[0].text);
+ 	 var data2 = $('#searchState').combobox('getData');
+ 	$('#searchState').combobox('select',data2[0].text);
+ 	
+ 	 
+ 	 var data3 = $('#searchType').combobox('getData');
+ 	$('#searchType').combobox('select',data3[0].text);
+ 	
+ 	
+ 	
+	$('#tt').datagrid({
+             onClickRow: function (rowIndex, rowData) {
+             	var workerId = rowData.id;
+             	$.post( "/SmartCC/smartCCIndex", 
+             	{
+	              	"workerId":workerId,
+	              	"method":"findOtherWorkersOnSameGroup"
+             	},function (data){
+             	
+			},"json" );
+	 	}
+	});
+	test();
+});
+function test(){
+	$("#searchBatchNo").combobox({ 
+		url:'/SmartCC/smartCCIndex?method=loadBatchNos', //数据请求
+		valueField:'batchNo', //选项的value
+		textField:'batchNo', //选项的显示值
+		editable:true, //下拉框不允许编辑
+		//combobox继承combo继承validatebox，所以可以直接在这里设置验证
+		onLoadSuccess:function(){
+		var data = $('#searchState').combobox('getData');
+		$('#searchBatchNo').combobox('select',data[0].text);
+		}, // 此方法没有参数
+		onBeforeLoad:function(param){
+		}// param用于指定加载参数
+		});
+}
+	</script>
+	<style>
+		
+		<!--遮罩层的css代码-->
+		*{margin:0;padding:0;list-style-type:none;}
+		a,img{border:0;}
+		.demo{margin:100px auto 0 auto;width:400px;text-align:center;font-size:18px;}
+		.demo .action{color:#3366cc;text-decoration:none;font-family:"微软雅黑","宋体";}
+		
+		.overlay{position:fixed;top:0;right:0;bottom:0;left:0;z-index:998;width:100%;height:100%;_padding:0 20px 0 0;background:#f6f4f5;display:none;}
+		.showbox{position:fixed;top:0;left:50%;z-index:9999;opacity:0;filter:alpha(opacity=0);margin-left:-80px;}
+		*html,*html body{background-image:url(about:blank);background-attachment:fixed;}
+		*html .showbox,*html .overlay{position:absolute;top:expression(eval(document.documentElement.scrollTop));}
+		#AjaxLoading{border:1px solid #8CBEDA;color:#37a;font-size:12px;font-weight:bold;}
+		#AjaxLoading div.loadingWord{width:180px;height:50px;line-height:50px;border:2px solid #D6E7F2;background:#fff;}
+		#AjaxLoading img{margin:10px 15px;float:left;display:inline;}
+		.l-btn-text{
+			font-size: 9;
+		}
+	</style>
+</head>
+	
+	<body style="width:100%;height: 100%;">
+	<div id="dlg" class="easyui-dialog"
+		data-options="iconCls:'icon-save',resizable:true,modal:true"
+		style="width:420px;height:210px;padding:10px 20px;top:300px" closed="true"
+		buttons="#dlg-buttons">
+		<div class="ftitle" style="font-size: 15px"></div>
+		
+		<div class="overlay"></div>
+
+		<div id="AjaxLoading" class="showbox">
+			<div class="loadingWord"><img src="waiting.gif">data loading ...</div>
+		</div>
+		<form id="fm" name="fm" method="post"
+			action="/SmartCC/smartCCIndex?method=uploadEmergencyTaskExcel" data-options="novalidate:true" enctype="multipart/form-data">
+			<input type="hidden" name="method" value="uploadEmergencyTaskExcel">
+			<table style="width: 100%">
+				<tr>
+					<td><font style="font-size: 9px">Choose file:&nbsp; </font></td>
+					<td>
+						<input id="fileBox1" name=emergencyExcelData class="easyui-filebox"  data-options="prompt:'Choose a excel（xls、xlsx）',buttonText:'&nbsp;Choose file &nbsp;'" style="width: 200px;">
+					</td>
+				</tr>
+				
+				<tr>
+					<td><font style="font-size: 13px">Component: &nbsp; </font></td><td><input id="component" name="component"
+					class="easyui-textbox" data-options="required:false" style="width: 200px;"></td>
+				</tr>
+				<tr>
+					<td colspan="2" style="width: 100%">
+						<table>
+							<tr>
+								<td>
+									<div class="checkbox-group" id="qualified" style="width:115px;float:left">
+										<input type="radio" id="one" name="isEmergency" value="1"/> 
+										<label for="one" class="compTitle">Emergency</label>
+									</div>
+								</td>
+								<td>
+									<div class="checkbox-group">
+										<input type="radio" id="two" name="isEmergency" value="0" /> <label
+											for="two" class="compTitle">Normal</label>
+									</div>
+								</td>
+								<td>
+									<div class="checkbox-group" style="float:right">
+										<input type="radio" id="three" name="isEmergency" value="2" /> <label
+											for="three" class="compTitle">Recheck</label>
+									</div>
+								</td>
+							</tr>
+						</table>
+						
+					</td>
+				</tr>
+			</table>
+			
+			
+		</form>
+	</div>
+	<div id="dlg-buttons">
+		<a href="javascript:void(0)" class="easyui-linkbutton  button blue"
+			data-options="" onclick="addEmergency()" style="width:90px">OK</a> <a
+			href="javascript:void(0)" class="easyui-linkbutton  button blue"
+			data-options="" onclick="javascript:$('#dlg').dialog('close')"
+			style="width:90px">Cancel</a>
+	</div>
+	<div class="overlay"></div>
+	
+	 
+		<table style="width: 100%;height: 100%;border: 1" border="0">
+			<tr style="">
+			<!-- 左侧留白 -->
+				<td style="width: 5%;height: 100%;"></td>
+				<!-- 中间主体 -->
+				<td style="width: 90%;height: 100%">
+					<table border="0" style="width: 100%;height: 100%;">
+						<!-- 上方留白 -->
+						<tr style="width: 100%;height: 3%;">
+							<td></td>
+						</tr>
+						<tr style="width: 100%;height: 5%;">
+							<td colspan="4">
+								<div>
+									<!-- <a class="logo" href="###" onclick="reLoad();return false;"><img alt="" src="images/bmwlogo.png" style="width: 4%;" class="logo"></a> -->
+									<font style="font-size: 24px;color:#333;font-weight: 500;margin-top: 5%">Smart Cycle Counting</font>
+								</div>
+							</td>
+						</tr>
+						<!-- 上面的两个表格 -->
+						<tr style="width: 100%;height: 50%;margin-top:10%">
+							<td style="width: 100%;">
+								<table style="width: 100%;height: 100%;border: 1">
+									<tr>
+										<!-- 分配结果列表 -->
+										<td class = "layoutTable" style="width: 33.7%;">
+											
+											<div style="margin-bottom:0.5%;height:9%;width: 100%">
+												<font style="font-size: 12px;font-weight:700;margin-left: 5px">Choose one:</font>
+												<input id="cc" class="easyui-combobox" name="dept" 
+												data-options="valueField:'id',
+						    					textField:'name',
+						    					url:'/SmartCC/smartCCIndex?method=loadWorkers',"  
+						    					style="width: 14%;height: 28px">
+												<font style="font-size: 12px;font-weight:700;margin-left: 40px;">Status:</font> 
+												<select  id="searchState"  class="easyui-combobox" name="searchState" style="width:14%;height: 28px;">
+													    <option value="" selected="selected"> Choose one</option>
+													    <option value="1">Assigned</option>
+													    <option value="2">In progress</option>
+													    <option value="3">Completed</option>
+													</select>
+													<!-- <a href="javascript:void(0)" id="searchBtn" class="easyui-linkbutton  button blue" style="width: 15%;height: 30px;">Search</a> -->
+												<!-- 下载按钮 -->
+								    			<a href="/SmartCC/servlet/ExportDivideHistoryInfoServlet" id="downLoadBtn" onclick="downLoad()" class="easyui-linkbutton  button" style="width: 7%;height: 28px;">
+							    					<font style="font-size:9 ">DownLoad</font>
+							    				</a>
+							    				<!-- view按钮 -->
+							    				<a href="####" id="finishBtn" onclick="view();return false;" class="easyui-linkbutton button" style="width: 8%;height: 28px;display: none">
+							    					<font style="font-size:9 ">View</font>
+							    				</a>
+								    			<!-- start按钮 -->
+								    			<a href="####" id="startBtn" onclick="updateState(-1);return false;" class="easyui-linkbutton button" style="width: 8%;height: 28px;">
+							    					<font style="font-size:9 ">Start</font>
+							    				</a>
+							    				<!-- finish按钮 -->
+							    				<a href="####" id="finishBtn" onclick="updateState(-1);return false;" class="easyui-linkbutton button" style="width: 8%;height: 28px;">
+							    					<font style="font-size:9 ">Finish</font>
+							    				</a>
+							    				<!-- 删除按钮 -->
+							    				<a href="####" id="deleteBtn" onclick="deleteDivision(-1);return false;" class="easyui-linkbutton button" style="width: 8%;height: 28px;">
+							    					<font style="font-size:9 ">Delete</font>
+							    				</a>
+							    				</div>
+								    				
+							    			<!-- 分配结果列表 -->
+							    			<table align="center" id="divideResult" class="easyui-datagrid" title="" style="height:90%;width:100%;"
+											data-options="singleSelect:false,collapsible:true,url:'',method:'get',striped:true,fitColumns:true">
+												<thead >
+													<tr>
+														<th data-options="field:'dh',width:100,align:'center',checkbox:'true'">Choose</th>
+														
+														<th data-options="field:'workerId',width:130,align:'center'">Staff No.</th>
+														<th data-options="field:'componentName',width:130,align:'center'">Part</th>
+														<th data-options="field:'orderNum',width:130,align:'center'">Order</th>
+														<th data-options="field:'stationNames',width:320,align:'center'">Part station</th>
+														<th data-options="field:'state',width:130,align:'center',formatter:formatterState">Status</th>
+														<th data-options="field:'operate',width:130,formatter:formatOper,align:'center'">Operation</th>
+													</tr>
+												</thead>
+											</table>
+										</td>
+										<!-- 分配结果列表结束 -->
+										<td style="width: 1%;" ></td>
+										<!-- echart 横向柱状图 -->
+										<td class="layoutTable" style="width: 18%;">
+											<div id="container" style="width:100%; height:100%;"></div>
+										</td>
+										<!-- echart 横向柱状图结束 -->
+									</tr>
+								</table>
+							</td>
+						</tr>
+						<!-- 上面两个表格结束 -->
+						<!-- 中间留白 -->
+						<tr style="width: 100%;height: 0.8%;">
+							<td></td>
+						</tr>
+						<!-- 中间留白结束 -->
+						<!-- 下面的两个表格 -->
+						<tr style="width: 100%;height: 50%;">
+							<td style="width: 100%">
+							<form id="demoForm" class="easyui-layout" style="height: 100%" method="post" enctype="multipart/form-data" action="/SmartCC/smartCCIndex?method=uploadTaskExcel" method="post">
+								<table style="width: 100%;height: 100%;border: 1">
+									<tr>
+										<!-- 任务列表 -->
+										<td class="layoutTable" style="width: 54%">
+										
+											<div style="height:15%;">
+												<input id="fileBox" name="excelData" class="easyui-filebox" data-options="prompt:'Choose a file（*.xls、*.xlsx）',buttonText:'&nbsp;Choose file &nbsp;'" style="width:30%;height: 28px;font-size: 9">
+							    				<a href="javascript:void(0)" id="uploadBtn" class="easyui-linkbutton button" style="width: 68px;height: 28px;">
+							    					<font style="font-size:9 ">Upload</font>
+							    				</a>
+							    				<a href="javascript:void(0)" id="emergencyBtn" class="easyui-linkbutton button" style="width: 68px;height: 28px;">
+							    					<font style="font-size:9 ">Emergency</font>
+							    				</a>
+							    				<input id="searchBatchNo" class="" name="searchBatchNo" 
+												data-options="valueField:'batchNo',
+						    					textField:'batchNo',
+						    					url:'/SmartCC/smartCCIndex?method=loadBatchNos'"  
+						    					style="width: 100px;height: 28px">
+						    					<select  id="searchType"  class="easyui-combobox" name="searchType" style="width:100px;height: 28px;">
+													    <option value="" selected="selected">Choose one</option>
+													    <option value="0">Nomal</option>
+													    <option value="1">Emergency</option>
+													    <option value="2">Recheck</option>
+												</select><br>
+												<div style="float:left ;margin-top: 5px">Total component num:</div><div id="total" style="float:left;margin-top: 5px"></div>
+						    				</div>
+						    				
+						    				<!--<a href="javascript:void(0)" id="emergencyBtn" class="easyui-linkbutton button blue" style="width: 100px;height: 30px;">Emergency</a>  -->
+								  					<!-- 任务列表 -->
+						  					<table align="center" id="taskTable" class="easyui-datagrid" title="" style="height:80%;width: 100%;margin-left: 5px;"
+											data-options="
+											singleSelect:false,
+											collapsible:true,
+											url:'',
+											method:'post',
+											striped:true,
+											fitColumns:true,
+											rownumbers:true
+											">
+												<thead>
+													<tr>
+														<!-- <th data-options="field:'ck',width:90,align:'center',checkbox:'true'">Choose</th> -->
+														<!--  <th data-options="field:'taskNo',width:100,align:'center'">TaskNo.</th>-->
+														<th data-options="field:'batchNo',width:130,align:'center'">Batch No</th>
+														<th data-options="field:'componentName',width:100,align:'center'">Part</th>
+														<th data-options="field:'stationName',width:100,align:'center'">Part station</th>
+														<th data-options="field:'type',width:100,align:'center'">Category</th>
+														<th data-options="field:'workerId',width:100,align:'center'">Staff No.</th>
+														<th data-options="field:'taskType',width:100,align:'center',formatter:taskTypeFormatter">Task type</th>
+														<th data-options="field:'state',width:100,align:'center',formatter:formatterState">Status</th>
+													</tr>
+												</thead>
+											</table>
+										</td>
+										<!-- 任务列表结束 -->
+										<!-- 人员列表 -->
+										<td class="layoutTable" style="width: 24%">
+											<div style="height:12%;">
+														 <font style="font-size: 12px;font-weight:700;margin-left: 5px;">Group:</font>
+									           			 <input type="checkbox" id="isManual" class="uiswitch" style="display: none;"> 
+										 				<select  id="searchGroup"  class="" name="searchGroup" style="width:110px;height: 28px;">
+														    <option value="" selected="selected"> Choose one</option>
+														    <option value="A">A</option>
+														    <option value="B">B</option>
+														</select>
+														 	<a href="####" class="easyui-linkbutton  button" id="submitSchemeBtn" style="width: 68px;height: 28px;" onclick="return false;">
+																<font style="font-size: 9px">Submit</font>
+															</a>
+											</div>
+														<table id="tt" style="width: 100%;height: 80%;"></table>
+													
+												
+		    								
+										</td>
+										<!-- 人员列表结束 -->
+										<!-- 中间留白 -->
+										<!-- <td style="width: 2%"></td> -->
+										<!-- 中间留白结束 -->
+										<!-- 进度表 -->
+										<td class="layoutTable" style="width: 33%;">
+											<div id="gauge"  style="width:100%; height:100%;"></div>
+										</td>
+										<!-- 进度表结束 -->
+									</tr>
+								</table>
+								</form>
+							</td>
+							
+						</tr>
+						<!-- 下方留白 -->
+						<tr style="width: 100%;height: 5%;">
+							<td colspan="3"></td>
+						</tr>
+						<!-- 下方留白结束 -->
+					</table>
+				</td>
+				<td style="width: 5%"></td>
+			</tr>
+		</table>
+		</form>
+	</body>
+</html>

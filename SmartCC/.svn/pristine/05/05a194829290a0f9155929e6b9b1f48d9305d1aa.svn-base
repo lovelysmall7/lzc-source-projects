@@ -1,0 +1,17 @@
+package com.lzc.demo.dao;
+
+import org.apache.ibatis.session.SqlSession;
+
+import com.lzc.demo.model.WorkerInfo;
+import com.lzc.demo.util.SqlMapInitUtil;
+public class WorkerInfoDao extends BaseDao<WorkerInfo>{
+	public WorkerInfoDao(){
+		setSqlNameSpace(WorkerInfo.class.getName());
+	}
+	public void initAllWorkerStation(){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		session.update(sqlNameSpace + "." + "initAllWorkerStation");
+		session.commit();
+		session.close();
+	}
+}

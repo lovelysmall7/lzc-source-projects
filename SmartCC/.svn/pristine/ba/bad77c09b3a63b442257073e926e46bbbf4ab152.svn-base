@@ -1,0 +1,108 @@
+package com.lzc.demo.util;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+
+public class MydateUtil {
+	private static SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+	/**
+	 * 根据时间段获取日期数据 相差小于一个月 得出天数数组 相差大于一个月得出月份数组
+	 * 
+	 * @param startTime
+	 * @param endTime
+	 * @throws ParseException 
+	 */
+	public static ArrayList<String> getDateArrayByTimeSlot(String startTime, String endTime) throws ParseException {
+		ArrayList<String> dateStrList = new ArrayList<String>();
+		Calendar startCalendar = Calendar.getInstance();
+        Calendar endCalendar = Calendar.getInstance();
+        
+        Date startDate = df.parse(startTime);
+        startCalendar.setTime(startDate);
+        Date endDate = df.parse(endTime);
+        endCalendar.setTime(endDate);
+        while(true){
+            
+            if(startCalendar.getTimeInMillis() <= endCalendar.getTimeInMillis()){//TODO 
+            	String dateStr = df.format(startCalendar.getTime());
+            	dateStrList.add(dateStr);
+            	//System.out.println(dateStr);
+	        }else{
+	            break;
+	        }
+            startCalendar.add(Calendar.DAY_OF_MONTH, 1);
+        }
+        return dateStrList;
+	}
+	/**
+	 * 获取最近n天的日期数组
+	 * @param days
+	 * @return
+	 */
+	public static ArrayList<String> getDateArrayByNum(Integer days){
+        Calendar endCalendar = Calendar.getInstance();
+		ArrayList<String> dateStrList = new ArrayList<String>();
+		Date currentDate = new Date();
+		endCalendar.setTime(currentDate);	
+		for(int i = 0;i < days;i++){
+        	dateStrList.add(getPastDate(i));
+		}
+		return dateStrList;
+	}
+	   /** 
+	    * 获取过去第几天的日期 
+	    * 
+	    * @param past 
+	    * @return 
+	    */  
+	   public static String getPastDate(int past) {  
+	       Calendar calendar = Calendar.getInstance();  
+	       calendar.set(Calendar.DAY_OF_YEAR, calendar.get(Calendar.DAY_OF_YEAR) - past);  
+	       Date today = calendar.getTime();  
+	       SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");  
+	       String result = format.format(today);  
+	       return result;  
+	   } 
+	   /** 
+	    * 获取未来 第 past 天的日期 
+	    * @param past 
+	    * @return 
+	    */  
+	   public static String getFetureDate(int past) {  
+	       Calendar calendar = Calendar.getInstance();  
+	       calendar.set(Calendar.DAY_OF_YEAR, calendar.get(Calendar.DAY_OF_YEAR) + past);  
+	       Date today = calendar.getTime();  
+	       SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");  
+	       String result = format.format(today);  
+	       return result;  
+	   }  
+	/**
+	 * 比较两个日期大小（前者是否早于后者）
+	 * @param startTime
+	 * @param endTime
+	 * @throws ParseException
+	 */
+	public static boolean compareDate(String startTime, String endTime) throws ParseException {
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+		Date bt = sdf.parse(startTime);
+		Date et = sdf.parse(endTime);
+		boolean flag = true;
+		if (!bt.before(et)) {
+			flag = false;
+		} 
+		return flag;
+	}
+	public static void main(String[] args){
+		String startTime = "2018-3-26";
+		String endTime = "2018-4-27";
+		try {
+			getDateArrayByTimeSlot(startTime,endTime);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+}

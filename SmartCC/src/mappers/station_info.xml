@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace命名空间，为了对sql语句进行隔离，方便管理 ，mapper开发dao方式，使用namespace有特殊作用 -->
+<mapper namespace="com.lzc.demo.model.StationInfo">
+<!-- 在mapper.xml文件中配置很多的sql语句，执行每个sql语句时，封装为MappedStatement对象
+mapper.xml以statement为单位管理sql语句
+ -->
+    <!-- 根据id查询用户信息 -->
+    <!-- 
+        id：唯一标识 一个statement
+        #{}：表示 一个占位符，如果#{}中传入简单类型的参数，#{}中的名称随意
+        parameterType：输入 参数的类型，通过#{}接收parameterType输入 的参数
+        resultType：输出结果 类型，不管返回是多条还是单条，指定单条记录映射的pojo类型
+     -->
+    <select id="findAll" parameterType="com.lzc.demo.model.StationInfo" resultType="com.lzc.demo.model.StationInfo"> 
+    	SELECT * FROM station_info where 1 = 1 
+    	<if test="stationName != null and stationName != '' ">
+    		and stationName = #{stationName}
+    	</if>
+    </select>
+     <select id="findAllOnCurrentDay" parameterType="com.lzc.demo.model.StationInfo" resultType="com.lzc.demo.model.StationInfo"> 
+    	SELECT * FROM station_info where date(createTime) = curdate() 
+    </select>
+    <insert id="insert" parameterType="com.lzc.demo.model.StationInfo">
+    	insert into station_info (
+    		id,
+    		stationName,
+    		createTime,
+    		xAxis,
+    		yAxis,
+    		type,
+    		mappingValue
+    	)values(
+    		#{id},
+    		#{stationName},
+    		#{createTime},
+    		#{xAxis},
+    		#{yAxis},
+    		#{type},
+    		#{mappingValue}
+    	)
+    </insert>
+    <!-- 根据id查找对象 -->
+    <select id="findById" parameterType="java.lang.String" resultType="com.lzc.demo.model.StationInfo">
+    	select * from station_info where id = #{value}
+    </select>
+    <!-- 更新一条数据 -->
+    <update id="update" parameterType="com.lzc.demo.model.StationInfo">
+    	update station_info set 
+    	xAxis = #{xAxis},
+    	yAxis = #{yAxis},
+    	mappingValue = #{mappingValue}
+    	where id = #{id}
+    </update>
+    <delete id="deleteByID" parameterType="java.lang.String">
+    	delete from station_info where id = #{value}
+    </delete>
+    
+</mapper>

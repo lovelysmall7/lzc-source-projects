@@ -1,0 +1,856 @@
+package com.lzc.demo.controller.index;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileItemFactory;
+import org.apache.commons.fileupload.disk.DiskFileItemFactory;
+import org.apache.commons.fileupload.servlet.ServletFileUpload;
+
+import com.lzc.demo.dao.DivideHistoryInfoDao;
+import com.lzc.demo.dao.StationInfoDao;
+import com.lzc.demo.dao.TaskInfoDao;
+import com.lzc.demo.dao.TaskWalkLengthDao;
+import com.lzc.demo.dao.WorkerInfoDao;
+import com.lzc.demo.model.DivideHistoryInfo;
+import com.lzc.demo.model.MapInfo;
+import com.lzc.demo.model.StationInfo;
+import com.lzc.demo.model.TaskInfo;
+import com.lzc.demo.model.TaskWalkLength;
+import com.lzc.demo.model.WorkerInfo;
+import com.lzc.demo.service.index.SmartCCIndexService;
+import com.lzc.demo.controller.BaseServlet;
+import com.lzc.demo.util.CalculationUtil;
+import com.lzc.demo.util.CharDataUtil;
+import com.lzc.demo.util.ExcelHelper;
+import com.lzc.demo.util.ExcelUtil;
+import com.lzc.demo.util.PythonUtil;
+import com.lzc.demo.util.SysStringUtil;
+import com.lzc.demo.util.Astar.AStar;
+import com.lzc.demo.util.Astar.AStarMapInfo;
+import com.lzc.demo.util.Astar.Node;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+@WebServlet("/smartCCIndex")
+public class SmartCCIndexController extends BaseServlet{
+	private SmartCCIndexService service = new SmartCCIndexService();
+	public void uploadEmergencyTaskExcel(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		String resultStr = new SmartCCIndexService().uploadEmergencyTaskExcel(request);
+		if ("-1".equals(resultStr)) {
+			result.put("code", "-1");
+			result.put("data", null);
+			String resultJson = JSONObject.fromObject(result).toString();
+			writeToView(response, resultJson);
+		}
+		if(("-2").equals(resultStr)){
+			result.put("code", "-2");
+			result.put("data", null);
+			String resultJson = JSONObject.fromObject(result).toString();
+			writeToView(response, resultJson);
+		}
+		else{
+			writeToView(response, resultStr);
+		}
+	}
+	 /**
+	  * 上传任务列表Excel
+	  * @param request
+	  * @param response
+	  * @throws ServletException
+	  * @throws IOException
+	  */
+	 public void uploadTaskExcel(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		 	HashMap<String, Object> result = new HashMap<String, Object>();
+			String resultStr = new SmartCCIndexService().uploadTaskExcel(request);
+			if ("-1".equals(resultStr)) {
+				result.put("code", "-1");
+				result.put("data", null);
+				String resultJson = JSONObject.fromObject(result).toString();
+				writeToView(response, resultJson);
+			}
+			if(("-2").equals(resultStr)){
+				result.put("code", "-2");
+				result.put("data", null);
+				String resultJson = JSONObject.fromObject(result).toString();
+				writeToView(response, resultJson);
+			}
+			else{ 
+				//需要加上判断是否已经分配的逻辑
+				DivideHistoryInfoDao dDao = new DivideHistoryInfoDao();
+				//查看当天是否存在已经分配的任务
+				List<DivideHistoryInfo> dList = dDao.findAllOnCurrentDay(new DivideHistoryInfo());
+				if(dList.size() > 0){
+					//需要重新分配
+				}
+				else{
+					
+				}
+				writeToView(response, resultStr);
+			}
+	 }
+	 /**
+	  * 加载数据
+	  * @param request
+	  * @param response
+	  * @throws ServletException
+	  * @throws IOException
+	  */
+	 public void loadData(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		String resultJson =  new SmartCCIndexService().loadData(request);
+		System.out.println(resultJson);
+		writeToView(response, resultJson);
+	 }
+		
+		
+	private Integer getIndexOfStation(List<Map<String,Object>> pointList,String stationName){
+		for(int i = 0; i< pointList.size();i++){
+			Map<String,Object> map = pointList.get(i);
+			String stationName1 = (String) map.get("stationName");
+			if(stationName.equals(stationName1)){
+				return i;
+			}
+		}
+		return null;
+	}
+	/**
+	 * 处理人员分配任务请求
+	 *
+	 * This method is called when a form has its tag value method equals to post.
+	 * 
+	 * @param request the request send by the client to the server
+	 * @param response the response send by the server to the client
+	 * @throws ServletException if an error occurred
+	 * @throws IOException if an error occurred
+	 */
+	public void submitScheme(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		TaskInfoDao taskInfoDao = new TaskInfoDao();
+		response.setCharacterEncoding("utf-8");
+        response.setContentType("application/json");
+        PrintWriter out = response.getWriter();
+        HashMap<String,Object> resultHM = new HashMap<String,Object>();
+		String workersJson = request.getParameter("workersJson");
+		System.out.println(workersJson);
+		DivideHistoryInfoDao divideHistoryInfoDao = new DivideHistoryInfoDao();
+		//将前端传递的选择人员集合字符串转为json数组
+		JSONArray jarray = JSONArray.fromObject(workersJson);
+		DivideHistoryInfo f = new DivideHistoryInfo();
+		for(int i = 0; i < jarray.length() ; i ++){
+			JSONObject obj = (JSONObject) jarray.get(i);
+			String workerId = obj.getString("id");
+			String areaId  = obj.getString("areaId");//获得该员工的责任区域
+			//遍历所有任务 将属于该区域的任务分配给这个人
+			HashMap<String,String> componentMap = CalculationUtil.findComponentFromTaskByAreaId(areaId);
+			int order = 1;//这个地方暂时写死
+			if(componentMap != null){
+				for (Map.Entry<String, String> entry : componentMap.entrySet()) {  
+				    String componentName = entry.getKey(); 
+				    CalculationUtil.divitionComponentToPerson(componentName, workerId, order);
+				    order ++;
+				} 
+			}
+		}
+		//构建用来调用python的参数 json
+		List<Map<String,Object>> listA = CharDataUtil.getPointsData();
+		if(listA.size()> 0){
+			Map<String,Integer> coorDinateDate =CharDataUtil.adjustCoordinate(listA);
+			List<String> legendData = CharDataUtil.getlegendData(listA);
+			ArrayList<Map<String,Object>> eCharCategoriesList = CharDataUtil.getCategoriesList(legendData);
+			Map<String,Object> personLMap = CharDataUtil.buildParamForPython();
+			String paramJson = JSONObject.fromObject(personLMap).toString();
+			//python程序返回的参数P00001:[1,2,3,4],[4,2,1,3],P00004:[1,3,4,5,6]
+			//String findPathJson = new PythonUtil().findPathProcessByPython(paramJson);
+			//--20171225 优化，如果分配零件的时候 调用python算法成功  将结果集存放到session中 下次加载直接从session中取 而不是重新等待python算法执行
+			//if(findPathJson != null && !"".equals(findPathJson)){
+				//request.getSession().setAttribute("findPathJson", findPathJson);
+				List<DivideHistoryInfo> dList1 = divideHistoryInfoDao.findAllOnCurrentDay(f);
+				//更新顺序号
+				//updateOrderNumFromPython(dList1, findPathJson, personLMap);
+				//生成各个点之间的连线
+				//ArrayList<ArrayList<Object>> finalLineList = CharDataUtil.buildLineList(findPathJson, personLMap, listA);
+				
+				//ArrayList<Object> finalLine = finalLineList.get(finalLineList.size() - 1);// 获得最后一组连线
+				//request.getSession().setAttribute("finalLine", finalLine);
+				//ArrayList<Object> arrowList = CharDataUtil.getArrowList(finalLine,listA,null);//获得箭头指向关系
+				//构建echarts（工位点） 的图表
+				resultHM.put("range", coorDinateDate);
+				resultHM.put("points", listA);
+				resultHM.put("legendData", legendData);
+				resultHM.put("eCharCategoriesList", eCharCategoriesList);
+				//resultHM.put("lineData",finalLineList);
+				//resultHM.put("arrowList",arrowList);
+			}
+			
+		//}
+		resultHM.put("code", 0);
+		TaskInfo t1 = new TaskInfo();
+		List<TaskInfo> tList = taskInfoDao.findAllOnCurrentDay(t1);
+		resultHM.put("data", tList); 
+		List<DivideHistoryInfo> dList = divideHistoryInfoDao.findAllOnCurrentDay(f);
+	
+		resultHM.put("data1", dList); 
+		//-------------构建图表数据---------------------
+		Map<String,Object> charDataMap = CharDataUtil.newBuildCharData();
+		Object categoriesList = charDataMap.get("categories");
+		Object seriesList = charDataMap.get("series");
+		resultHM.put("categories", categoriesList);
+		resultHM.put("series", seriesList);
+		Integer sNum = (Integer) charDataMap.get("sNum");
+		resultHM.put("sNum", sNum);
+		String resultJson = JSONObject.fromObject(resultHM).toString();
+		out.write(resultJson);
+        out.flush();
+        out.close();
+		System.out.println("--");
+	}
+	/**
+	 * 处理人员分配任务请求 SmartCC_EN_002.jsp 调用
+	 * 20180227
+	 * This method is called when a form has its tag value method equals to post.
+	 * 
+	 * @param request the request send by the client to the server
+	 * @param response the response send by the server to the client
+	 * @throws ServletException if an error occurred
+	 * @throws IOException if an error occurred
+	 */
+	public void submitScheme_002(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		//为A* 算法提供地图数据
+		ArrayList<ArrayList<Integer>> mapData = service.buildMapData();
+		AStarMapInfo mapInfo = new AStarMapInfo();
+		mapInfo.buildMap(mapData);
+		//地图数据构建结束
+		//test Code
+		/*Node sNode = new Node(117,204);
+		Node eNode = new Node(244,242);
+		mapInfo.setInfo(sNode, eNode);
+		  //用两个相邻工位去调用A* 算法 计算距离
+		AStar aStar = new AStar();
+		aStar.start(mapInfo);
+		System.out.println(eNode.G);*/
+		TaskInfoDao taskInfoDao = new TaskInfoDao();
+		List<String> list = taskInfoDao.getTaskComponentList();
+		Map<String,List<String>> paramList = new HashMap<String,List<String>>();
+		DivideHistoryInfoDao divideHistoryInfoDao = new DivideHistoryInfoDao();
+		String workersJson = request.getParameter("workersJson");
+		JSONArray parray = JSONArray.fromObject(workersJson);
+		String pNum = parray.length() + "";
+		//只存放零件名称的集合 方便后面取值
+		List<String> componentList = new ArrayList<String>();
+		DivideHistoryInfo f = new DivideHistoryInfo();
+		if(list != null){
+			for(int i = 0;i < list.size();i++){
+				String componentName = list.get(i);
+				List<String> stationList = taskInfoDao.getStationByComponent(componentName);
+				//map 结构： C01:工位1、工位2、工位3...
+				paramList.put(list.get(i), stationList);
+				componentList.add(componentName);
+			}
+		}
+		divisionTest(paramList,parray.length(),mapInfo);
+		//这个是将要传给python的第一个参数 当日所有的任务零件 涉及的工位
+		String paramJson = JSONObject.fromObject(paramList).toString();
+		//这个是要传给python的第二个参数 工人数目
+		WorkerInfoDao wDao = new WorkerInfoDao();
+		List<WorkerInfo> wList = wDao.findAll();
+		//第三个参数  excel地图文件的存放路径
+		String excelPath = this.getClass().getClassLoader().getResource("/").getFile() + "map.xlsx";
+		//String excelPath ="D:/map.xlsx";
+		excelPath = excelPath.substring(1,excelPath.length()); 
+		//最外层的size 是人员的数量
+		//String pythonResult = "[[0,2,6],[3,5,7]]";
+		//"{'0': [0, 4], '1': [1, 2, 3]}";//
+		ArrayList<String> lines = new PythonUtil().getDivisionResultFromPython(paramJson, pNum+"", excelPath);
+		String pythonResult = lines.get(1);//分配结果//
+		String pythonResult1 = lines.get(0);//距离{0: 60.0, 1: 92.0}
+		JSONObject obj = JSONObject.fromObject(pythonResult);
+		JSONObject obj1 = JSONObject.fromObject(pythonResult1);
+		TaskWalkLengthDao twDao = new TaskWalkLengthDao();
+		for(int i = 0;i < parray.length();i++){
+			TaskWalkLength tw = new TaskWalkLength();
+			JSONObject pobj = (JSONObject) parray.get(i);
+			String workerId = pobj.getString("id");
+			JSONArray taskIndexArray = obj.getJSONArray(i + "");
+			String distanse = obj1.getString(i + "");
+			tw.setId(UUID.randomUUID().toString());
+			tw.setCreateTime(new Date());
+			tw.setDistanse(Double.valueOf(distanse).intValue());
+			tw.setWorkerId(workerId);
+			tw.setState(0);
+			//插入一条每个人的路程记录
+			twDao.insert(tw);
+			
+			for(int l = 0;l < taskIndexArray.length();l++){
+				int index = taskIndexArray.getInt(l);
+				String componentName = componentList.get(index);
+				CalculationUtil.divitionComponentToPerson(componentName, workerId, l);
+			}
+			
+		}
+		HashMap<String,Object> resultHM = new HashMap<String,Object>();
+		resultHM.put("code", 0);
+		TaskInfo t1 = new TaskInfo();
+		List<TaskInfo> tList = taskInfoDao.findAllOnCurrentDay(t1);
+		resultHM.put("data", tList); 
+		List<DivideHistoryInfo> dList = divideHistoryInfoDao.findAllOnCurrentDay(f);
+	
+		resultHM.put("data1", dList); 
+		//-------------构建图表数据---------------------
+		Map<String,Object> charDataMap = CharDataUtil.newBuildCharData();
+		Object categoriesList = charDataMap.get("categories");
+		Object seriesList = charDataMap.get("series");
+		resultHM.put("categories", categoriesList);
+		resultHM.put("series", seriesList);
+		Integer sNum = (Integer) charDataMap.get("sNum");
+		resultHM.put("sNum", sNum);
+		String resultJson = JSONObject.fromObject(resultHM).toString();
+		writeToView(response, resultJson);
+	}
+	/**
+	 * 分配任务算法java重写版 2018-04-08 lizc
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+		public void submitScheme_003(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		HashMap<String,Object> resultHM = new HashMap<String,Object>();
+		TaskInfoDao taskInfoDao = new TaskInfoDao();
+		TaskWalkLengthDao twDao = new TaskWalkLengthDao();
+		DivideHistoryInfoDao dDao = new DivideHistoryInfoDao();
+		TaskInfo tParam = new TaskInfo();
+		tParam.setState(2);
+		List<TaskInfo> tList1 = taskInfoDao.findAllOnCurrentDay(tParam);
+		
+		tParam.setState(3);
+		List<TaskInfo> tList2 = taskInfoDao.findAllOnCurrentDay(tParam);
+		if(tList1.size() > 0 || tList2.size() > 0){
+			resultHM.put("code", 1);
+			resultHM.put("msg", "There has been a task to start or finish,cannot be redistributed.");
+			writeToView(response, resultHM);
+			return;
+		}
+		else{
+			//若已经分配过 需要删除当天数据重新分配
+			DivideHistoryInfo dParam = new DivideHistoryInfo();
+			List<DivideHistoryInfo> dList = dDao.findAllOnCurrentDay(dParam);
+			
+			if(dList.size() > 0){
+				dDao.deleteCurrentData();
+				twDao.deleteCurrentData();
+				TaskInfo tParam1 = new TaskInfo();
+				tParam1.setState(1);
+				//将之前更新为已分配状态的任务 复原回未分配
+				List<TaskInfo> tList_1 = taskInfoDao.findAllOnCurrentDay(tParam1);
+				if(tList_1 != null){
+					for(int i = 0;i < tList_1.size();i++){
+						TaskInfo t = tList_1.get(i);
+						t.setState(0);
+						taskInfoDao.update(t);
+					}
+				}
+			}
+			
+		}
+		//为A* 算法提供地图数据
+		ArrayList<ArrayList<Integer>> mapData = service.buildMapData();
+		AStarMapInfo mapInfo = new AStarMapInfo();
+		mapInfo.buildMap(mapData);
+		//地图数据构建结束
+		//test Code
+		/*Node sNode = new Node(117,204);
+		Node eNode = new Node(244,242);
+		mapInfo.setInfo(sNode, eNode);
+		  //用两个相邻工位去调用A* 算法 计算距离
+		AStar aStar = new AStar();
+		aStar.start(mapInfo);
+		System.out.println(eNode.G);*/
+		
+		List<String> list = taskInfoDao.getTaskComponentList();
+		Map<String,List<String>> paramList = new HashMap<String,List<String>>();
+		DivideHistoryInfoDao divideHistoryInfoDao = new DivideHistoryInfoDao();
+		String workersJson = request.getParameter("workersJson");
+		JSONArray parray = JSONArray.fromObject(workersJson);
+		String pNum = parray.length() + "";
+		//只存放零件名称的集合 方便后面取值
+		List<String> componentList = new ArrayList<String>();
+		DivideHistoryInfo f = new DivideHistoryInfo();
+		if(list != null){
+			for(int i = 0;i < list.size();i++){
+				String componentName = list.get(i);
+				List<String> stationList = taskInfoDao.getStationByComponent(componentName);
+				//map 结构： C01:工位1、工位2、工位3...
+				paramList.put(list.get(i), stationList);
+				componentList.add(componentName);
+			}
+		}
+		ArrayList<ArrayList<HashMap<String,Object>>> resultList = divisionTest(paramList,parray.length(),mapInfo);
+		//这个是将要传给python的第一个参数 当日所有的任务零件 涉及的工位
+		//这个是要传给python的第二个参数 工人数目
+		for(int i = 0;i < parray.length();i++){
+			TaskWalkLength tw = new TaskWalkLength();
+			JSONObject pobj = (JSONObject) parray.get(i);//parray :前端传来的工人集合
+			String workerId = pobj.getString("id");
+			//获取每一个人员的分配结果 （一个集合 包含零件、距离、工位等信息）
+			ArrayList<HashMap<String,Object>> oneWorkerResult = resultList.get(i);
+			HashMap<String,Object> pHM = oneWorkerResult.get(oneWorkerResult.size() - 1);//最后一个零件任务的距离就是该工人的总距离
+			Integer distanse = (Integer) pHM.get("distanse");
+			tw.setId(UUID.randomUUID().toString());
+			tw.setCreateTime(new Date());
+			tw.setDistanse(Double.valueOf(distanse).intValue());
+			tw.setWorkerId(workerId);
+			tw.setState(0);
+			//插入一条每个人的路程记录
+			twDao.insert(tw);
+			
+			for(int l = 0;l < oneWorkerResult.size();l++){
+				HashMap<String,Object> pHM1 = oneWorkerResult.get(l);
+				String componentName = (String) pHM1.get("componentName");
+				CalculationUtil.divitionComponentToPerson(componentName, workerId, l+1);
+			}
+			
+		}
+		
+		TaskInfo t1 = new TaskInfo();
+		List<TaskInfo> tList = taskInfoDao.findAllOnCurrentDay(t1);
+		resultHM.put("code", 0); 
+		resultHM.put("data", tList); 
+		List<DivideHistoryInfo> dList = divideHistoryInfoDao.findAllOnCurrentDay(f);
+	
+		resultHM.put("data1", dList); 
+		//-------------构建图表数据---------------------
+		Map<String,Object> charDataMap = CharDataUtil.newBuildCharData();
+		Object categoriesList = charDataMap.get("categories");
+		Object seriesList = charDataMap.get("series");
+		resultHM.put("categories", categoriesList);
+		resultHM.put("series", seriesList);
+		Integer sNum = (Integer) charDataMap.get("sNum");
+		resultHM.put("sNum", sNum);
+		String resultJson = JSONObject.fromObject(resultHM).toString();
+		writeToView(response, resultJson);
+	}
+	public ArrayList<ArrayList<HashMap<String,Object>>> divisionTest(Map<String,List<String>> paramList,Integer pNum,AStarMapInfo mapInfo){
+		AStar aStar = new AStar();
+		StationInfoDao sDao = new StationInfoDao();
+		String resultJson = "";
+		//创建一个用来存放待分配零件集合的队列
+		ArrayList<HashMap<String,Object>> queue = new ArrayList<HashMap<String,Object>>();
+		for (Map.Entry<String,List<String>> entry : paramList.entrySet()) { 
+		 // System.out.println("Key = " + entry.getKey() + ", Value = " + entry.getValue()); 
+		  String componentName = entry.getKey();//零件名称
+		  List<String> stations = entry.getValue();//该了零件对应的所有工位
+		  HashMap<String,Object> aMap = new HashMap<String,Object>();
+		  int distanse = 0;
+		  //对每个零件下的工位进行遍历
+		  for(int l=0;l < stations.size();l++){
+			  String stationId = stations.get(l);
+			  StationInfo s = sDao.findById(stationId);
+			  if(s == null){
+				  System.out.println("!!the station info  is not in database : " + stationId);
+				  return null;
+			  }
+			  String x = SysStringUtil.formatIntegerStr(s.getxAxis());
+			  String y = SysStringUtil.formatIntegerStr(s.getyAxis());
+			  Integer sx = Integer.parseInt(x) - 1;
+			  Integer sy = Integer.parseInt(y) - 1;
+			  if(l + 1 < stations.size()){
+				  String eStationId = stations.get(l + 1);
+				  StationInfo estation = sDao.findById(eStationId);
+				  if(estation == null){
+					  System.out.println("!!the station info is not in database : " + eStationId);
+					  return null;
+				  }
+				  Integer ex = Integer.parseInt(SysStringUtil.formatIntegerStr(estation.getxAxis())) - 1;
+				  Integer ey = Integer.parseInt(SysStringUtil.formatIntegerStr(estation.getyAxis())) - 1;
+				  
+				  Node sNode = new Node(sx,sy);
+				  Node eNode = new Node(ex,ey);
+				  mapInfo.setInfo(sNode, eNode);
+				  //用两个相邻工位去调用A* 算法 计算距离
+				  aStar.start(mapInfo);
+				  distanse += eNode.G;
+			  }
+		  }
+		  aMap.put("componentName", componentName);
+		  aMap.put("distanse", distanse);
+		  aMap.put("stations", stations);
+		  queue.add(aMap);
+		}
+		System.out.println("当前队列待分配零件数量 ： " + queue.size());
+		//以上代码计算了每个零件对应的工位的距离总代价
+		/**
+		 * queue结构
+		 * c1 200 s1,s2,s3
+		 * c2 240 s4,s5,s6
+		 * ...
+		 */
+		
+		
+		/**
+		 * 第一次分配：随机分配 从queue中弹出n个零件分配给n个人 
+		 */
+		//分配结果的list 有几个人就有几个元素  里面每个list里存放的每个人分到的零件
+		ArrayList<ArrayList<HashMap<String,Object>>> resultList =  new ArrayList<ArrayList<HashMap<String,Object>>>();
+		Integer indexFlag = -1;//记录下一次应该给第几个谁分配
+		Integer minDistanse = -1;
+		for(int i = 0;i < pNum;i++){//有几个人就循环几次
+			ArrayList<HashMap<String,Object>> cList = new ArrayList<HashMap<String,Object>>();
+			Iterator<HashMap<String,Object>> it = queue.iterator();
+			if(it.hasNext()){
+				HashMap<String,Object> hm = it.next();
+				it.remove();//将这个元素从集合中删除
+				cList.add(hm);//把一个零件分配给一个人 并从队列中删除
+				Integer distanse = (Integer) hm.get("distanse");
+				if(i == 0){
+					minDistanse = distanse;
+					indexFlag = 0;
+				}
+				else{
+					if(distanse < minDistanse){
+						minDistanse = distanse;
+						indexFlag = i;//当前谁的距离最小下一次就应该分配给谁
+					}
+				}
+				resultList.add(cList);
+			}
+			
+			
+		}
+		System.out.println("第一次随机分配完毕。");
+		/**
+		 * 继续分配队列中剩余的零件
+		 */
+		while(queue.size() > 0){
+			System.out.println("队列中剩余： " + queue.size() + "个元素。");
+			//循环第一次：上面代码记录的indexFlag的位置，这次直接取出list中的对应人分配结果
+			ArrayList<HashMap<String,Object>> cList = resultList.get(indexFlag);
+			//拿到当前的这个人分配的最新的一个零件
+			HashMap<String,Object> hm = cList.get(cList.size() - 1);
+			//拿到当前零件对应的所有工位集合
+			List<String> stations = (List<String>) hm.get("stations");
+			//从工位集合中取出最后一个工位
+			String startStationId = stations.get(stations.size() - 1);
+			//通过dao查出该工位坐标信息
+			StationInfo sStationInfo = sDao.findById(startStationId);
+			System.out.println(" 起始点id：" + startStationId);
+			Node sNode = new Node(Integer.parseInt(sStationInfo.getxAxis()) - 1,Integer.parseInt(sStationInfo.getyAxis()) - 1);
+			//当前人员要走的总距离
+			Integer distanse = (Integer) hm.get("distanse");
+			Integer minDistanse_1 = 0;
+			Integer minDistanse_2 = 0;//20180418后加 只比对起始零件内部距离 + 起止距离  不加 终止零件内部距离 但最终计算总距离需要加上 所以minDistanse_1保留
+			Integer minDistanseQueueIndex = 0;//路程最小的点再queue中的位置
+			//对剩余零件集合进行遍历 计算每一个零件的点 与当前sStationInfo的距离 取最小的分配给这个人
+			for(int i = 0;i < queue.size();i++){
+				
+				HashMap<String,Object> cInfo = queue.get(i);
+				ArrayList<String> eStations = (ArrayList<String>) cInfo.get("stations");
+				//得到这个零件的第一个工位id
+				String eStationId = eStations.get(0);
+				System.out.println(" 终止点id：" + eStationId);
+				StationInfo eStationInfo = sDao.findById(eStationId);//通过dao查出该工位坐标信息
+				Integer distanse1 = (Integer) cInfo.get("distanse");//零件内部工位总距离
+				Node eNode = new Node(Integer.parseInt(SysStringUtil.formatIntegerStr(eStationInfo.getxAxis())) - 1,Integer.parseInt(SysStringUtil.formatIntegerStr(eStationInfo.getyAxis())) - 1);
+				mapInfo.setInfo(sNode, eNode);
+				aStar.start(mapInfo);
+				Integer distanse_1 = eNode.G;//起始位置和终止位置的距离
+				if(minDistanse_1 == 0){
+					minDistanse_1 = distanse + distanse_1 + distanse1;
+					minDistanse_2 = distanse + distanse_1;
+				}
+				else{
+					if(distanse_1 + distanse < minDistanse_2){
+						minDistanse_1 = distanse + distanse_1 + distanse1;
+						minDistanse_2 = distanse_1 + distanse;
+						minDistanseQueueIndex = i;
+					}
+				}
+			}
+			Iterator<HashMap<String,Object>> itt = queue.iterator();
+			int count = 0;//记录queue 循环次数
+			//这次的循环目的就是根据上面的minDistanseQueueIndex 结果 取出queue中的元素分配给这个人 并且从queue中删除
+			while(itt.hasNext()){
+				HashMap<String,Object> hm_1 = itt.next();
+				if(count == minDistanseQueueIndex){
+					itt.remove();
+					hm_1.put("distanse", distanse + minDistanse_1);
+					cList.add(hm_1);
+					break;
+				}
+				count++;
+			}
+			Integer minDistanse_111 = 0;
+			for(int i = 0;i < resultList.size();i++){
+				ArrayList<HashMap<String,Object>> cList_1 = resultList.get(i);
+				//得到当前人员最近分配的零件信息，里面的distanse 就是当前的总distanse
+				HashMap<String,Object> currentHM = cList_1.get(cList_1.size() - 1);
+				if(i == 0){
+					minDistanse_111 = (Integer) currentHM.get("distanse");
+					indexFlag = 0;
+				}
+				else{
+					//再找出最小的距离 更新indexFlag
+					if(minDistanse_111 > (Integer) currentHM.get("distanse")){
+						minDistanse_111 = (Integer) currentHM.get("distanse");
+						indexFlag = i;
+					}
+				}
+			}
+			
+		}
+		
+		
+		return resultList;
+	}
+	/**
+	 * 将python返回的结果的序号更新到数据库
+	 * @param dList
+	 * @param findPathJson
+	 * @param personLMap
+	 */
+	private void updateOrderNumFromPython(List<DivideHistoryInfo> dList,String findPathJson,Map<String,Object> personLMap){
+		JSONObject jObj = JSONObject.fromObject(findPathJson);
+		Iterator iterator = jObj.keys();//获取返回json对象所有的key
+		TaskInfoDao dao = new TaskInfoDao();
+		DivideHistoryInfoDao dao1 = new DivideHistoryInfoDao();
+		while(iterator.hasNext()){
+		     String key = (String) iterator.next();
+		     String value = jObj.getString(key);
+		     //这个数组的最后一个元素就是最终的顺序
+		     /**
+		      * 比如这个数组最后一个元素为P00004工人的[5,3,2,4,1](数组的每一个元素还是一个数组类型)
+		      * 那么从personLMap中找到该P00004员工的工位集合：比如为05_001_2,05_001_3,05_001_4,05_001_5,05_001_6
+		      * 那么05_001_6这个工位代表的零件的序号就是1同理05_001_4是2，05_001_3是3，05_001_5是4，05_001_2是5
+		      * 将工位对应的零件编号的顺序更新到divide_history_info表中
+		      */
+		     JSONArray jr1 = JSONArray.fromString(value);
+		     JSONArray lastPath =  (JSONArray) jr1.get(jr1.length() - 1);
+		     ArrayList<String> stations  = (ArrayList<String>) personLMap.get(key);
+		     for(int i = 0;i < lastPath.length();i++){
+		    	 int order = i + 1;//从1开始 所以+1
+		    	 Integer index = lastPath.getInt(i);//这个是为了从stations拿到指定位置的工位
+		    	 if(index < stations.size()){
+		    		 String stationName = stations.get(index);
+			    	 TaskInfo t = new TaskInfo();
+			    	 t.setStationName(stationName);
+			    	 List<TaskInfo> tList = dao.findAllOnCurrentDay(t);
+			    	 if(tList.size() > 0){
+			    		 String componentName = tList.get(0).getComponentName();
+			    		 for(int k = 0;k < dList.size();k++){
+			    			 DivideHistoryInfo d = dList.get(k);
+			    			 if(d.getComponentName().equals(componentName)){
+			    				 d.setOrderNum(order);
+			    				 dao1.update(d);
+			    			 }
+			    		 }
+			    	 }
+		    	 }
+		    	 
+		     }
+		}
+	}
+	/**
+	 * 改变状态
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void changeState(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		String resultJson = new SmartCCIndexService().changeState(request);
+        writeToView(response, resultJson);
+	}
+	/**
+	 * 查询分配结果
+	 */
+	public void searchDivideResult(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		response.setCharacterEncoding("utf-8");
+        response.setContentType("application/json");
+        PrintWriter out = response.getWriter();
+		Integer state = 0;
+		String searchWorker = request.getParameter("searchWorker");
+		String searchState = request.getParameter("searchState");
+		if(searchState != null && !"".equals(searchState)){
+			state = Integer.parseInt(searchState);
+		}
+		DivideHistoryInfoDao dao = new DivideHistoryInfoDao();
+		DivideHistoryInfo d = new DivideHistoryInfo();
+		d.setWorkerId(searchWorker);
+		d.setState(state);
+		List<DivideHistoryInfo> list = dao.findAllOnCurrentDay(d);
+		Map<String,Object> resultHM = new HashMap<String,Object>();
+		resultHM.put("code", 0);
+        resultHM.put("data", list);
+        String resultJson = JSONObject.fromObject(resultHM).toString();
+        out.write(resultJson);
+        out.flush();
+        out.close();
+	}
+	/**
+	 * 导出分配结果excel
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void ExportDivideHistoryInfo(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		DivideHistoryInfoDao dao = new DivideHistoryInfoDao();
+		String searchWorker = request.getParameter("searchWorker");
+		String searchState = request.getParameter("searchState");
+		HashMap<String,Object> param = new HashMap<String,Object>();
+		param.put("workerId", searchWorker);
+		param.put("state", searchState);
+		List<HashMap<String,Object>> dataList = dao.selectMapByParam(param);
+		HashMap<String,Object> title1 = new HashMap<String,Object>();
+		title1.put("label", "Staff No.");
+		title1.put("property", "workerId");
+		HashMap<String,Object> title2 = new HashMap<String,Object>();
+		title2.put("label", "Component");
+		title2.put("property", "componentName");
+		HashMap<String,Object> title3 = new HashMap<String,Object>();
+		title3.put("label", "Order");
+		title3.put("property", "orderNum");
+		HashMap<String,Object> title4 = new HashMap<String,Object>();
+		title4.put("label", "Part station");
+		title4.put("property", "stationNames");
+		HashMap<String,Object> title5 = new HashMap<String,Object>();
+		title5.put("label", "Status");
+		title5.put("property", "state");
+		
+		List<Object> titleArray = new ArrayList<Object>();
+		titleArray.add(title1);
+		titleArray.add(title2);
+		titleArray.add(title3);
+		titleArray.add(title4);
+		titleArray.add(title5);
+		String titleJson = JSONArray.fromObject(titleArray).toString();
+		ExcelUtil.exportExcel(request, response, "exportData.xls", titleJson, dataList);
+	}
+	/**
+	 * 加载人员列表
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void loadWorkers(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		String loadType = request.getParameter("loadType");
+		response.setCharacterEncoding("utf-8");
+        response.setContentType("application/json");
+        PrintWriter out = response.getWriter();
+		WorkerInfoDao dao = new WorkerInfoDao();
+		List<WorkerInfo> list = dao.findAll();
+		WorkerInfo w = new WorkerInfo();
+		w.setId("");
+		w.setName("Choose one");
+		if(!"datagrid".equals(loadType)){
+			list.add(0, w);
+		}
+		
+		String resultJson = JSONArray.fromObject(list).toString();
+        out.write(resultJson);
+        out.flush();
+        out.close();
+	}
+	/**
+	 * 获取演示寻径过程数据调用此函数
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void viewPath(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		SmartCCIndexService service = new SmartCCIndexService();
+		ArrayList<ArrayList<Integer>> mapData = service.buildMapData();
+		//构建地图信息结束-------------------------
+		
+		//构建人员任务分配结果json----------------------
+		List<HashMap<String,Object>> pList = service.selectCurrentTaskStation();//buildViewPathData();
+		//构建人员分配结果json结束-----------------------
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		result.put("code","0");
+		result.put("mapData",mapData);
+		result.put("pList",pList);
+		String resultJson = JSONObject.fromObject(result).toString();
+		System.out.println(resultJson);
+		writeToView(response, resultJson);
+	}
+	private ArrayList<HashMap<String,Object>> buildViewPathData(){
+		DivideHistoryInfoDao dDao = new DivideHistoryInfoDao();
+		StationInfoDao sDao = new StationInfoDao();
+		ArrayList<DivideHistoryInfo> dList = (ArrayList<DivideHistoryInfo>) dDao.findAllOnCurrentDay(new DivideHistoryInfo());
+		Map<String,String> idMap = new LinkedHashMap<String,String>();
+		for(int i = 0;i < dList.size();i++){
+			idMap.put(dList.get(i).getWorkerId(), dList.get(i).getWorkerId());
+		}
+		ArrayList<HashMap<String,Object>> pList = new ArrayList<HashMap<String,Object>>();
+		for (Map.Entry<String, String> entry : idMap.entrySet()) {  
+		    String workerId = entry.getKey(); 
+		    ArrayList<HashMap<String,Object>> stationList = new ArrayList<HashMap<String,Object>>();
+		    for(int i = 0;i < dList.size();i++){
+		    	DivideHistoryInfo d = dList.get(i);
+		    	String wId = d.getWorkerId();
+		    	if(wId.equals(workerId)){
+		    		String stationNames = d.getStationNames();
+		    		String[] sArray = stationNames.split(",");
+		    		String stationName = sArray[0];
+		    		StationInfo sinfo = sDao.findById(stationName);
+		    		String x = sinfo.getxAxis();
+		    		String y = sinfo.getyAxis();
+		    		HashMap<String,Object> pInfo = new HashMap<String,Object>();
+		    		pInfo.put("name", stationName);
+		    		pInfo.put("x", Integer.parseInt(x));
+		    		pInfo.put("y", Integer.parseInt(y));
+		    		stationList.add(pInfo);
+		    	}
+		    }
+		    HashMap<String,Object> pMap = new HashMap<String,Object>();
+		    pMap.put(workerId, stationList);
+		    pList.add(pMap);
+		}  
+		return pList;
+	}
+	/**
+	 * 保存最优路径的步数
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void saveBestPath(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		
+		String stepsStr = request.getParameter("steps");
+		Integer steps = Integer.parseInt(stepsStr);
+		TaskWalkLengthDao twDao = new TaskWalkLengthDao();
+		TaskWalkLength tw = new TaskWalkLength();
+		tw.setId(UUID.randomUUID().toString());
+		tw.setState(1);
+		tw.setWorkerId("ALL");
+		tw.setDistanse(steps);
+		tw.setCreateTime(new Date());
+		twDao.insert(tw);
+		System.out.println(steps);
+	}
+}

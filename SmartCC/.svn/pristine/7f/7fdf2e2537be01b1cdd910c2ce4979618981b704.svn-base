@@ -1,0 +1,39 @@
+<!DOCTYPE configuration
+PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+<!-- 和spring整合后 environments配置将废除-->
+<environments default="development">
+<environment id="development">
+<!-- 使用jdbc事务管理-->
+<transactionManager type="JDBC" />
+<!-- 数据库连接池-->
+<dataSource type="POOLED">
+<property name="driver" value="com.mysql.jdbc.Driver" />
+<!--local  -->
+<property name="url" value="jdbc:mysql://localhost:3306/demo?characterEncoding=utf-8" />
+<property name="username" value="root" />
+<property name="password" value="123456" />
+<!-- <property  name ="Pool.MaximumActiveConnections"  value ="10"   />    -->  <!-- 连接池维持的最大容量 -->  
+<!-- <property  name ="Pool.MaximumIdleConnections"  value ="5" />    --> <!-- 连接池允许挂起的最大连接 -->  
+<!-- <property  name ="Pool.MaximumCheckoutTime"  value ="120000" />   -->  <!-- 连接被某个任务所允许占用的最大时间 -->  
+<!-- <property  name ="TimeToWait"  value ="500" />    --><!-- 线程允许等待的最大时间 --> 
+<!--  server
+<property name="url" value="jdbc:mysql://localhost:3306/smartCC?characterEncoding=utf-8" />
+<property name="username" value="bmwusr" />
+<property name="password" value="welcome1#bmw" />-->
+</dataSource>
+</environment>
+</environments>
+<mappers>
+	<mapper resource="mappers/Component.xml"></mapper>
+	<mapper resource="mappers/task_info.xml"></mapper>
+	<mapper resource="mappers/worker_info.xml"></mapper>
+	<mapper resource="mappers/divide_history_info.xml"></mapper>
+	<mapper resource="mappers/station_distance_mapping.xml"></mapper>
+	<mapper resource="mappers/station_info.xml"></mapper>
+	<mapper resource="mappers/area_info.xml"></mapper>
+	<mapper resource="mappers/area_info_mapping.xml"></mapper>
+	<mapper resource="mappers/task_walk_length.xml"></mapper>
+</mappers>
+</configuration>

@@ -1,0 +1,126 @@
+package com.lzc.demo.model;
+/**
+ * 任务对象实体 lizc
+ */
+import java.util.Date;
+
+import org.springframework.format.annotation.DateTimeFormat;
+
+public class TaskInfo {
+	private String id;
+	private String componentName;//零件名称/编号
+	private String stationId;//暂时不用
+	private String stationName;//工位信息
+	private String type;//零件类别（与零件表关联）
+	
+	private String workerId;//工人id
+	private Integer orderNum;//顺序
+	private Integer state;//状态 0未分配1已分配2完成中3已完成
+	@DateTimeFormat(pattern="yyyy-MM-dd hh:mm:ss")
+	private Date createTime;//创建时间
+	private Integer currentDistance;//
+	private String taskNo;//任务编号（导入excel时候生成的一个顺序号）
+	private Integer checkResult;
+	private String comment;
+	private String startTime;
+	private String endTime;
+	private String createTimeStr;
+	
+	public String getCreateTimeStr() {
+		return createTimeStr;
+	}
+	public void setCreateTimeStr(String createTimeStr) {
+		this.createTimeStr = createTimeStr;
+	}
+	public String getStartTime() {
+		return startTime;
+	}
+	public void setStartTime(String startTime) {
+		this.startTime = startTime;
+	}
+	public String getEndTime() {
+		return endTime;
+	}
+	public void setEndTime(String endTime) {
+		this.endTime = endTime;
+	}
+	public Integer getCheckResult() {
+		return checkResult;
+	}
+	public void setCheckResult(Integer checkResult) {
+		this.checkResult = checkResult;
+	}
+	public String getComment() {
+		return comment;
+	}
+	public void setComment(String comment) {
+		this.comment = comment;
+	}
+	public String getType() {
+		return type;
+	}
+	public void setType(String type) {
+		this.type = type;
+	}
+	public String getTaskNo() {
+		return taskNo;
+	}
+	public void setTaskNo(String taskNo) {
+		this.taskNo = taskNo;
+	}
+	public Integer getCurrentDistance() {
+		return currentDistance;
+	}
+	public void setCurrentDistance(Integer currentDistance) {
+		this.currentDistance = currentDistance;
+	}
+	public Date getCreateTime() {
+		return createTime;
+	}
+	public void setCreateTime(Date createTime) {
+		this.createTime = createTime;
+	}
+	public String getId() {
+		return id;
+	}
+	public void setId(String id) {
+		this.id = id;
+	}
+	public String getComponentName() {
+		return componentName;
+	}
+	public void setComponentName(String componentName) {
+		this.componentName = componentName;
+	}
+	public String getStationId() {
+		return stationId;
+	}
+	public void setStationId(String stationId) {
+		this.stationId = stationId;
+	}
+	public String getStationName() {
+		return stationName;
+	}
+	public void setStationName(String stationName) {
+		this.stationName = stationName;
+	}
+	public String getWorkerId() {
+		return workerId;
+	}
+	public void setWorkerId(String workerId) {
+		this.workerId = workerId;
+	}
+	public Integer getOrderNum() {
+		return orderNum;
+	}
+	public void setOrderNum(Integer orderNum) {
+		this.orderNum = orderNum;
+	}
+	public Integer getState() {
+		return state;
+	}
+	public void setState(Integer state) {
+		this.state = state;
+	}
+	
+}

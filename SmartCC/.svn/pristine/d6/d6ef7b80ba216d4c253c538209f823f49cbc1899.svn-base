@@ -1,0 +1,68 @@
+package com.lzc.demo.controller.index;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import com.lzc.demo.controller.BaseServlet;
+import com.lzc.demo.dao.ComponentCheckInfoDao;
+import com.lzc.demo.model.ComponentCheckInfo;
+import com.lzc.demo.service.index.SmartCCIndexService;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+
+@WebServlet("/smartCCpart2")
+public class SmartCCPart2Controller  extends BaseServlet{
+	public void loadData(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		ComponentCheckInfoDao cDao = new ComponentCheckInfoDao();
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		List<ComponentCheckInfo> clist = cDao.findAll();
+		
+		result.put("code", 0);
+		result.put("cList", clist);
+		
+		HashMap<String,Object> hm = new HashMap<String,Object>();
+		HashMap<String,Object> hm2 = new HashMap<String,Object>();
+		HashMap<String,Object> hm3 = new HashMap<String,Object>();
+		HashMap<String,Object> hm4 = new HashMap<String,Object>();
+		
+		hm.put("taskNo", "1");
+		hm.put("componentName", "1");
+		hm.put("stationName", "1");
+		hm.put("type", "1");
+
+		hm2.put("taskNo", "2");
+		hm2.put("componentName", "2");
+		hm2.put("stationName", "2");
+		hm2.put("type", "2");
+		
+		hm3.put("taskNo", "3");
+		hm3.put("componentName", "3");
+		hm3.put("stationName", "3");
+		hm3.put("type", "3");
+		
+		hm4.put("taskNo", "4");
+		hm4.put("componentName", "4");
+		hm4.put("stationName", "4");
+		hm4.put("type", "4");
+		ArrayList<Object> topList = new ArrayList<Object>();
+		
+		topList.add(hm);
+		topList.add(hm4);
+		topList.add(hm2);
+		topList.add(hm3);
+		
+		result.put("topList", topList);
+		String jsonStr = JSONObject.fromObject(result).toString();
+		writeToView(response, jsonStr);
+		System.out.println("++++++++++++++++++++++++++++++++++++++++++++");
+	}
+}

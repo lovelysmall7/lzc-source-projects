@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace命名空间，为了对sql语句进行隔离，方便管理 ，mapper开发dao方式，使用namespace有特殊作用 -->
+<mapper namespace="com.lzc.demo.model.WorkerInfo">
+<!-- 在mapper.xml文件中配置很多的sql语句，执行每个sql语句时，封装为MappedStatement对象
+mapper.xml以statement为单位管理sql语句
+ -->
+    <!-- 根据id查询用户信息 -->
+    <!-- 
+        id：唯一标识 一个statement
+        #{}：表示 一个占位符，如果#{}中传入简单类型的参数，#{}中的名称随意
+        parameterType：输入 参数的类型，通过#{}接收parameterType输入 的参数
+        resultType：输出结果 类型，不管返回是多条还是单条，指定单条记录映射的pojo类型
+     -->
+    <select id="findAll" parameterType="com.lzc.demo.model.WorkerInfo" resultType="com.lzc.demo.model.WorkerInfo"> 
+    	SELECT * FROM worker_info
+    	
+    </select>
+      <select id="findAllOnCurrentDay" parameterType="com.lzc.demo.model.TaskInfo" resultType="com.lzc.demo.model.WorkerInfo"> 
+    	SELECT * FROM worker_info where date(createTime) = curdate()
+    </select>
+    <!-- 查看当前已经分配过任务的人员 -->
+    <select id="selectCurrentDividedPerson" resultType="com.lzc.demo.model.WorkerInfo">
+    	select * from worker_info where id in (
+			select workerId from divide_history_info where  date(createTime) = curdate()
+		)
+    </select>
+    <insert id="insert" parameterType="com.lzc.demo.model.WorkerInfo">
+    	insert into worker_info (
+    		id,
+    		name,
+    		color,
+    		officeId,
+    		createTime,
+    		areaId
+    	)values(
+    		#{id},
+    		#{name},
+    		#{officeId},
+    		#{color},
+    		#{createTime},
+    		#{areaId}
+    	)
+    </insert>
+     <!-- 更新一条数据 -->
+    <update id="update" parameterType="com.lzc.demo.model.WorkerInfo">
+    	update worker_info set 
+    		name = #{name} ,
+    		currentStation = #{currentStation}
+    	where id = #{id}
+    </update>
+     <select id="findById" parameterType="java.lang.String" resultType="com.lzc.demo.model.WorkerInfo">
+    	select * from worker_info where id = #{value}
+    </select>
+    <delete id="deleteByID" parameterType="java.lang.String">
+    	delete from worker_info where id = #{value}
+    </delete>
+    <!-- 初始化所有工作人员的当前位置信息 -->
+    <update id="initAllWorkerStation">
+    	update worker_info set currentStation = null
+    </update>
+</mapper>

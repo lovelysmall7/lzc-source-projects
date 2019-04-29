@@ -1,0 +1,95 @@
+package com.lzc.demo.dao;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+import org.apache.ibatis.session.SqlSession;
+
+import com.lzc.demo.model.TaskInfo;
+import com.lzc.demo.util.SqlMapInitUtil;
+
+public class TaskInfoDao extends BaseDao<TaskInfo>{
+	public boolean divitionComponentToPerson(TaskInfo t){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		int result = session.update(sqlNameSpace + "." + "divitionComponentToPerson", t);
+		session.commit();
+		session.close();
+		return (result > 0);
+	}
+	public List<TaskInfo> findCurrentNotFinishList(){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<TaskInfo> list = session.selectList(sqlNameSpace + "." + "findCurrentNotFinishList");
+		session.close();
+		return list;
+	}
+	public List<HashMap<String,Object>> ExportTaskInfo(TaskInfo t){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<HashMap<String,Object>> list = session.selectList(sqlNameSpace + "." + "ExportTaskInfo",t);
+		session.close();
+		return list;
+	}
+	public TaskInfoDao(){
+		setSqlNameSpace(TaskInfo.class.getName());
+	}
+	public Integer getComponentNumOnCurrentDay(HashMap<String,Object> param){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		Integer num = session.selectOne(sqlNameSpace + "." + "getComponentNumOnCurrentDay", param);
+		session.close();
+		return num;
+	}
+	public List<TaskInfo> findFirstComponentStation(HashMap<String,Object> param){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<TaskInfo> list = session.selectList(sqlNameSpace + "." + "findFirstComponentStation",param);
+		session.close();
+		return list;
+	}
+	public Integer selectMaxTaskNum(){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		Integer num = session.selectOne(sqlNameSpace + "." + "selectMaxTaskNum");
+		session.close();
+		return num;
+	}
+	/**
+	 * 查当日任务中的所有零件
+	 * @return
+	 */
+	public List<String> getTaskComponentList(){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<String> list = session.selectList(sqlNameSpace + "." + "selectTaskComponent");
+		session.close();
+		return list;
+	}
+	/**
+	 * 查当日该零件涉及的所有工位
+	 * @return
+	 */
+	public List<String> getStationByComponent(String componentName){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<String> list = session.selectList(sqlNameSpace + "." + "getStationByComponent",componentName);
+		session.close();
+		return list;
+	}
+	/**
+	 * 查询当日所有任务的工位（无重复）
+	 * @return
+	 */
+	public List<HashMap<String,Object>> selectTaskStation(){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<HashMap<String,Object>> list = session.selectList(sqlNameSpace + "." + "selectTaskStation");
+		session.close();
+		return list;
+	}
+	public List<HashMap<String,Object>> selectPersonComponent(String dateStr){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<HashMap<String,Object>> list = session.selectList(sqlNameSpace + "." + "selectPersonComponent",dateStr);
+		session.close();
+		return list;
+	}
+	public List<TaskInfo> findUnfinishOnCurrentDay(TaskInfo t){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<TaskInfo> list = session.selectList(sqlNameSpace + "." + "findUnfinishOnCurrentDay",t);
+		session.close();
+		return list;
+	}
+}

@@ -1,0 +1,9 @@
+package com.lzc.demo.dao;
+
+import com.lzc.demo.model.StationInfo;
+
+public class StationInfoDao extends BaseDao<StationInfo>{
+	public StationInfoDao(){
+		setSqlNameSpace(StationInfo.class.getName());
+	}
+}

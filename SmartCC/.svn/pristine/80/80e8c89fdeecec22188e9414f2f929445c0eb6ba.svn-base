@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace命名空间，为了对sql语句进行隔离，方便管理 ，mapper开发dao方式，使用namespace有特殊作用 -->
+<mapper namespace="com.lzc.demo.model.DivideHistoryInfo">
+<!-- 在mapper.xml文件中配置很多的sql语句，执行每个sql语句时，封装为MappedStatement对象
+mapper.xml以statement为单位管理sql语句
+ -->
+    <!-- 根据id查询用户信息 -->
+    <!-- 
+        id：唯一标识 一个statement
+        #{}：表示 一个占位符，如果#{}中传入简单类型的参数，#{}中的名称随意
+        parameterType：输入 参数的类型，通过#{}接收parameterType输入 的参数
+        resultType：输出结果 类型，不管返回是多条还是单条，指定单条记录映射的pojo类型
+     -->
+    <select id="findAll" parameterType="com.lzc.demo.model.DivideHistoryInfo" resultType="com.lzc.demo.model.DivideHistoryInfo"> 
+    	SELECT * FROM divide_history_info where 1 = 1 
+    	<if test="componentName != null and componentName != '' ">
+    		and componentName = #{componentName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and workerId = #{workerId}
+    	</if>
+    	<if test="state != null and state != '' ">
+    		and state = #{state} 
+    	</if>
+    	order by createTime asc
+    </select>
+    
+    <select id="selectMapByParam" parameterType="java.util.HashMap" resultType="java.util.HashMap"> 
+    	SELECT * FROM divide_history_info where date(createTime) = curdate() 
+    	<if test="componentName != null and componentName != '' ">
+    		and componentName = #{componentName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and workerId = #{workerId}
+    	</if>
+    	<if test="state != null and state != '' ">
+    		and state = #{state} 
+    	</if>
+    	order by workerId asc,orderNum asc, componentName asc;
+    </select>
+     <select id="findAllOnCurrentDay" parameterType="com.lzc.demo.model.DivideHistoryInfo" resultType="com.lzc.demo.model.DivideHistoryInfo"> 
+    	SELECT * FROM divide_history_info where date(createTime) = curdate() 
+    	<if test="componentName != null and componentName != '' ">
+    		and componentName = #{componentName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and workerId = #{workerId}
+    	</if>
+    	<if test="state != null and state != '' ">
+    		and state = #{state} 
+    	</if>
+    	order by workerId asc,orderNum asc, componentName asc;
+    </select>
+    <select id="selectLastComponent" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    		SELECT * FROM `divide_history_info` where workerId = #{value} 
+    		and date(createTime) = curdate() 
+    		ORDER BY orderNum desc limit 1
+    </select>
+    <!-- 查找某人已经完成的最后一个零件 -->
+    <select id="selectFinishedLastComponent" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    		SELECT * FROM `divide_history_info` where workerId = #{value} 
+    		and date(createTime) = curdate() 
+    		<![CDATA[and state = 3 ]]>
+    		ORDER BY createTime desc ,orderNum desc limit 1
+    </select>
+    <select id="findUnfinishOnCurrentDay" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	SELECT * FROM divide_history_info where date(createTime) = curdate() 
+    	and state <![CDATA[<> 3]]> 
+    	order by workerId asc,orderNum asc, componentName asc;
+    </select>
+    <select id="findByWorkIds" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	SELECT * FROM divide_history_info where date(createTime) = curdate() 
+    	and find_in_set(workerId,#{value})  order by workerId asc,orderNum asc, componentName asc
+    </select>
+    <insert id="insert" parameterType="com.lzc.demo.model.DivideHistoryInfo">
+    	insert into divide_history_info (
+    		id,
+    		componentName,
+    		stationIds,
+    		stationNames,
+    		workerId,
+    		workerName,
+    		type,
+    		state,
+    		createTime,
+    		taskIds,
+    		orderNum
+    	)values(
+    		#{id},
+    		#{componentName},
+    		#{stationIds},
+    		#{stationNames},
+    		#{workerId},
+    		#{workerName},
+    		#{type},
+    		#{state},
+    		#{createTime},
+    		#{taskIds},
+    		#{orderNum}
+    	)
+    </insert>
+    <!-- 根据id查找对象 -->
+    <select id="findById" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	select * from divide_history_info where id = #{value}
+    </select>
+    <!-- 更新一条数据 -->
+    <update id="update" parameterType="com.lzc.demo.model.DivideHistoryInfo">
+    	update divide_history_info set 
+    		componentName = #{componentName} ,
+    		workerId = #{workerId} ,
+    		state = #{state},
+    		orderNum = #{orderNum}
+    	where id = #{id}
+    </update>
+    <delete id="deleteByID" parameterType="java.lang.String">
+    	delete from divide_history_info where id = #{value}
+    </delete>
+    <delete id="deleteByTaskId" parameterType="java.lang.String">
+    	delete from divide_history_info where taskIds like CONCAT('%',#{value},'%')  
+    </delete>
+    <!-- 删除当天数据 -->
+    <delete id="deleteCurrentData">
+    	delete from divide_history_info  where date(createTime) = curdate() <![CDATA[and state <> 3]]>
+    </delete>
+</mapper>

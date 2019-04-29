@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>viewpath.html</title>
+	
+    <meta name="keywords" content="keyword1,keyword2,keyword3">
+    <meta name="description" content="this is my page">
+    <meta name="content-type" content="text/html; charset=UTF-8">
+    <script type="text/javascript" src="js/jquery-1.8.3.min.js"></script>
+	<script type="text/javascript">
+		$(document).ready(
+			function(){
+			alert("sss");
+				$.post( "/SmartCC/smartCCIndex",//请求url
+				 {
+					 "method":"viewPath"//请求调用的方法
+				 },
+				 function (data){
+				//响应后移除遮罩层
+					
+				
+				},"json" );
+			}
+		);
+	</script>
+  </head>
+  
+  <body>
+    This is my HTML page. <br>
+  </body>
+</html>

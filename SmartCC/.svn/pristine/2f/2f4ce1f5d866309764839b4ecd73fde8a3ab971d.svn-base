@@ -1,0 +1,354 @@
+package com.lzc.demo.controller.index;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.commons.lang.StringUtils;
+
+import com.lzc.demo.controller.BaseServlet;
+import com.lzc.demo.dao.ComponentCheckInfoDao;
+import com.lzc.demo.dao.TaskInfoDao;
+import com.lzc.demo.model.ComponentCheckInfo;
+import com.lzc.demo.model.PageUtil;
+import com.lzc.demo.model.TaskInfo;
+import com.lzc.demo.service.index.SmartCCIndexService;
+import com.lzc.demo.service.index.SmartCCPart2Service;
+import com.lzc.demo.util.CalculationUtil;
+import com.lzc.demo.util.MydateUtil;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+
+@WebServlet("/smartCCpart2")
+public class SmartCCPart2Controller extends BaseServlet {
+	private SmartCCPart2Service service = new SmartCCPart2Service();
+	private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+	private final Integer maxViewBarNum = 10;//一页最多显示多柱状图数量
+	/**
+	 * 初始化加载页面所有数据
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void loadData(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		TaskInfoDao tDao = new TaskInfoDao();
+		//TaskInfo t = new TaskInfo();
+		//t.setState(3);
+		//List<TaskInfo> tList = tDao.findAllOnCurrentDay(t);
+		//for(int i = 0;i < tList.size();i++){
+			//TaskInfo ttt = tList.get(i);
+			//ttt.setCreateTimeStr(sdf.format(ttt.getCreateTime()));
+		//}
+		result.put("code", 0);
+		//result.put("tList", tList);
+
+		// 默认查当天
+		Date date = new Date();
+		String dateStr = sdf.format(date);
+		List<HashMap<String, Object>> pList = tDao.selectPersonComponent(dateStr);
+		if(pList != null){
+			for(int i = 0;i < pList.size();i++){
+				HashMap<String, Object> hm = pList.get(i);
+				hm.put("orderNum", i + 1);//序号从0开始 排序从1开始 所以需要 + 1
+			}
+		}
+		result.put("pList", pList);
+
+
+		ArrayList<String> dayList = MydateUtil.getDateArrayByNum(10);
+		String startTime = dayList.get(dayList.size() - 1);
+		String endTime = dayList.get(0);
+		try {
+			//构建柱状图支撑数据
+			buildBarDataByTime(startTime, endTime, result);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		writeToView(response, result);
+	}
+	
+	/**
+	 * 条件查询更新下面的任务列表
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void searchTaskList(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		//*****************分页用法示例： **********************
+		HashMap<String,Object>  param = new HashMap<String,Object>();
+		// 获取前台页数  
+		String pageStr = request.getParameter("page");
+		String rowsStr = request.getParameter("rows");
+		if(StringUtils.isBlank(pageStr)){
+			pageStr = "1";
+		}
+		if(StringUtils.isBlank(rowsStr)){
+			rowsStr = "10";
+		}
+        int page = Integer.parseInt(pageStr);  
+        
+        // 获取前台每页显示条数  
+        int row = Integer.parseInt(rowsStr);  
+        PageUtil<TaskInfo> pageUtil = new PageUtil<TaskInfo>(page,row);
+        param.put("pageUtil",pageUtil);
+        
+        
+		TaskInfoDao tDao = new TaskInfoDao();
+		String workerId = request.getParameter("workerId");
+		String station = request.getParameter("station");
+		String component = request.getParameter("component");
+		String checkResult = request.getParameter("checkResult");
+		TaskInfo t = new TaskInfo();
+		t.setWorkerId(workerId);
+		t.setStationName(station);
+		t.setComponentName(component);
+		if(!StringUtils.isBlank(checkResult)){
+			t.setCheckResult(Integer.parseInt(checkResult));
+		}
+		
+		param.put("searchParam", t);
+		
+		
+		
+		
+		//List<TaskInfo> tList = tDao.findAllOnCurrentDay(t);
+		PageUtil<TaskInfo> resultPageUtil = tDao.findByPage(param);
+		List<TaskInfo> tList = resultPageUtil.getResultList();
+		Integer total = resultPageUtil.getTotalRecord();
+		for(int i = 0;i < tList.size();i++){
+			TaskInfo ttt = tList.get(i);
+			ttt.setCreateTimeStr(sdf.format(ttt.getCreateTime()));
+		}
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		result.put("rows", tList);
+		result.put("total", total);
+		result.put("code", 0);
+		writeToView(response, result);
+	}
+	/**
+	 * 提交检查结果
+	 * 
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void submitCheckResult(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		String selectTasks = request.getParameter("tasksJson");
+		String checkResult = request.getParameter("checkResult");
+		String comment = request.getParameter("comment");
+		TaskInfoDao tDao = new TaskInfoDao();
+
+		// 将前端传递的选择任务集合字符串转为json数组
+		JSONArray jarray = JSONArray.fromObject(selectTasks);
+		for (int i = 0; i < jarray.length(); i++) {
+			JSONObject obj = (JSONObject) jarray.get(i);
+			String id = obj.getString("id");
+			TaskInfo t = tDao.findById(id);
+			if (t != null) {
+				t.setCheckResult(Integer.parseInt(checkResult));
+				t.setRemark(comment);
+				tDao.update(t);
+			}
+		}
+		TaskInfo param = new TaskInfo();
+		param.setState(3);
+		List<TaskInfo> tList = tDao.findAllOnCurrentDay(param);
+		for(int i = 0;i < tList.size();i++){
+			TaskInfo ttt = tList.get(i);
+			ttt.setCreateTimeStr(sdf.format(ttt.getCreateTime()));
+		}
+		result.put("code", 0);
+		///result.put("tList", tList);
+		//构建柱状图支撑数据
+		///ArrayList<String> dayList = MydateUtil.getDateArrayByNum(10);
+		//String startTime = dayList.get(dayList.size() - 1);
+		//String endTime = dayList.get(0);
+		//try {
+			//构建柱状图支撑数据
+			//buildBarDataByTime(startTime, endTime, result);
+		//} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			//e.printStackTrace();
+		//}
+		writeToView(response, result);
+	}
+
+	/**
+	 * 按照日期条件查询top10的列表
+	 * 
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void searchPersonByDate(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		String searchDate = request.getParameter("searchDate");
+		TaskInfoDao tDao = new TaskInfoDao();
+		List<HashMap<String, Object>> pList = tDao.selectPersonComponent(searchDate);
+		if(pList != null){
+			for(int i = 0;i < pList.size();i++){
+				HashMap<String, Object> hm = pList.get(i);
+				hm.put("orderNum", i + 1);//序号从0开始 排序从1开始 所以需要 + 1
+			}
+		}
+		
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		result.put("code", 0);
+		result.put("pList", pList);
+		writeToView(response, result);
+	}
+	/**
+	 * 根据起始截止日期 构建柱状图数据
+	 * @param startTime
+	 * @param endTime
+	 * @param result
+	 * @throws ParseException
+	 */
+	private void buildBarDataByTime(String startTime, String endTime, HashMap<String, Object> result)
+			throws ParseException {
+		TaskInfoDao tDao = new TaskInfoDao();
+
+		// 获取起止日期之间的天数组
+		ArrayList<String> dateArray = MydateUtil.getDateArrayByTimeSlot(startTime, endTime);
+		TaskInfo tInfo = new TaskInfo();
+		tInfo.setState(3);// 完成的任务
+		tInfo.setStartTime(startTime);
+		tInfo.setEndTime(endTime);
+		// 查出时间段内所有的完成任务集合
+		List<TaskInfo> tList = tDao.findAll(tInfo);
+		List<Integer> okNumList = new ArrayList<Integer>();
+		List<Integer> nokNumList = new ArrayList<Integer>();
+		List<Double> ratioList = new ArrayList<Double>();
+		String[] pieCategory = new String[2];
+		pieCategory[0] = "OK num";
+		pieCategory[1] = "NOK num";
+		Integer totalOKnum = 0;
+		Integer totalNokNum = 0;
+		int maxY = 0;
+		Double maxY1 = 0.0d;
+		for (int i = 0; i < dateArray.size(); i++) {
+			String dateStr = dateArray.get(i);// 每一个日期符串
+			Integer okNum = 0;
+			Integer nokNum = 0;
+			for (int j = 0; j < tList.size(); j++) {
+				TaskInfo t = tList.get(j);
+				Date d = t.getCreateTime();
+				String dStr = sdf.format(d);
+				if (dStr.equals(dateStr)) {// 判断两个日期相等
+					if (t.getCheckResult() != null) {
+						if (t.getCheckResult() == 0) {
+							okNum++;
+						}
+						if (t.getCheckResult() == 1) {
+							nokNum++;
+						}
+					}
+				}
+
+			} // j循环结束
+			okNumList.add(okNum);
+			totalOKnum += okNum;
+			nokNumList.add(nokNum);
+			totalNokNum += nokNum;
+			double ratio = 0.00;
+			if (okNum > 0 && nokNum > 0) {
+				ratio = new BigDecimal((float) nokNum / (okNum+nokNum)).setScale(2, BigDecimal.ROUND_HALF_UP).doubleValue();
+			}
+			if (ratio > maxY1) {
+				maxY1 = ratio;
+			}
+			ratioList.add(ratio);
+			if (okNum + nokNum > maxY) {
+				maxY = okNum + nokNum;
+			}
+		} // i循环结束
+		Double end = CalculationUtil.divideWithKeepNum(maxViewBarNum,dateArray.size(), 2);
+		end = end * 100;
+		Integer endInt = (end).intValue();
+		result.put("code", 0);
+		// ------这些是柱状图的数据支撑-------------
+		ArrayList<String> dateArray1 = new ArrayList<String>();
+		for(int m = 0;m < dateArray.size();m++){
+			String dateStr = dateArray.get(m);
+			if(!StringUtils.isEmpty(dateStr)){
+				dateStr = dateStr.replace("-","");
+				dateArray1.add(dateStr);
+			}
+		}
+		result.put("xAxis", dateArray1);
+		result.put("dataXoomEnd", endInt);
+		result.put("maxY", maxY);
+		result.put("maxY1", maxY1);
+		result.put("okNumList", okNumList);
+		result.put("nokNumList", nokNumList);
+		result.put("ratioList", ratioList);
+		
+		//饼状图的相关数据
+		result.put("pieCategory", pieCategory);
+		HashMap<String,Object> hm1 = new HashMap<String,Object>();
+		hm1.put("name","OK num");
+		hm1.put("value", totalOKnum);
+		HashMap<String,Object> hm2 = new HashMap<String,Object>();
+		hm2.put("name","NOK num");
+		hm2.put("value", totalNokNum);
+		List<Object> pieData = new ArrayList<Object>();
+		pieData.add(hm1);
+		pieData.add(hm2);
+		result.put("pieData", pieData);
+	}
+	/**
+	 * 点击search按钮根据时间查询柱状图数据
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void loadChartByTime(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		String startTime = request.getParameter("startTime");
+		String endTime = request.getParameter("endTime");
+		if(StringUtils.isEmpty(startTime) || StringUtils.isEmpty(endTime)){
+			ArrayList<String> dayList = MydateUtil.getDateArrayByNum(10);
+			startTime = dayList.get(dayList.size() - 1);
+			endTime = dayList.get(0);
+		}
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		try {
+			if (!MydateUtil.compareDate(startTime, endTime)) {
+				result.put("code", "1");
+				result.put("msg", "The start date must be earlier than the deadline.");
+				writeToView(response, result);
+				return;
+			}
+			buildBarDataByTime(startTime,endTime,result);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		writeToView(response, result);
+
+	}
+}

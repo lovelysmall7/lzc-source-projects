@@ -1,0 +1,255 @@
+package com.lzc.demo.util;
+
+import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
+
+import com.lzc.demo.dao.AreaInfoDao;
+import com.lzc.demo.dao.AreaInfoMappingDao;
+import com.lzc.demo.dao.DivideHistoryInfoDao;
+import com.lzc.demo.dao.StationDistanceMappingDao;
+import com.lzc.demo.dao.TaskInfoDao;
+import com.lzc.demo.model.AreaInfo;
+import com.lzc.demo.model.AreaInfoMapping;
+import com.lzc.demo.model.DivideHistoryInfo;
+import com.lzc.demo.model.StationDistanceMapping;
+import com.lzc.demo.model.TaskInfo;
+
+/**
+ * 涉及到一些计算的工具类
+ *@author lizc
+ *@date 2017年11月15日
+ *@fileName CalculationUtil.java
+ */
+public class CalculationUtil {
+	/**
+	 * 查找距离当前工位最近的工位点上的零件
+	 * @param stationId
+	 * @return
+	 */
+	public static String findNearestComponent(String stationId){
+		TaskInfoDao dao = new TaskInfoDao();
+		StationDistanceMappingDao mDao = new StationDistanceMappingDao();
+		TaskInfo t = new TaskInfo();
+		t.setState(0);
+		Integer smallest_Station = 0;
+		String componentName = "";
+		//查询当前未被分配的零件集合
+		List<TaskInfo> tList = dao.findAllOnCurrentDay(t);
+		if(tList != null){
+			Iterator<TaskInfo> it = tList.iterator();
+			if(it != null){
+				while(it.hasNext()){
+					TaskInfo tt = it.next();
+					StationDistanceMapping sdm = new StationDistanceMapping();
+					sdm.setStationA(stationId);
+					sdm.setStationB(tt.getStationName());
+					Integer distance = mDao.findByTowPoint(sdm);
+					
+					if(distance == null){
+						continue;
+					}
+					else{
+						tt.setCurrentDistance(distance);
+						if(smallest_Station == 0){
+							smallest_Station = distance;
+							componentName = tt.getComponentName();
+						}
+						else{
+							if(distance <= smallest_Station){
+								smallest_Station = distance;
+								componentName = tt.getComponentName();
+							}
+						}
+					}
+					
+				}
+			}
+		}
+		
+		return componentName;
+		
+	}
+	/**
+	 * 将某零件的所有任务根据工位与当前点距离 进行排序并更新到数据库中
+	 * 排序的主要目的在于当知道一个任务结束后立即能判定当前人员在什么工位上面
+	 * @param stationId 当前所在工位点
+	 * @param componentName 零件名称/型号
+	 */
+	public static void sortComponentList(String stationId,String componentName){
+		TaskInfoDao dao = new TaskInfoDao();
+		StationDistanceMappingDao mDao = new StationDistanceMappingDao();
+		TaskInfo t = new TaskInfo();
+		t.setComponentName(componentName);
+		Integer smallest_Station = 0;
+		//将当前零件的所有任务查出来
+		List<TaskInfo> tList = dao.findAllOnCurrentDay(t);
+		//这个迭代计算出所有零件工位与当前点的距离
+		if(tList != null){
+			Iterator<TaskInfo> it = tList.iterator();
+			if(it != null){
+				while(it.hasNext()){
+					TaskInfo tt = it.next();
+					StationDistanceMapping sdm = new StationDistanceMapping();
+					sdm.setStationA(stationId);
+					sdm.setStationB(tt.getStationName());
+					Integer distance = 0;
+					if(!sdm.getStationA().equals(sdm.getStationB())){
+						distance = mDao.findByTowPoint(sdm);
+					}
+					if(distance == null){
+						continue;
+					}
+					else{
+						tt.setCurrentDistance(distance);
+					}
+				}
+			}
+		}
+		//根据距离对工位进行排序
+		Collections.sort(tList, new Comparator<TaskInfo>() {
+			@Override
+			public int compare(TaskInfo t1, TaskInfo t2) {
+				// TODO Auto-generated method stub
+				return t1.getCurrentDistance() - t2.getCurrentDistance();
+			}
+	    });
+		//将顺序号更新到数据库
+		//12-13lizc 更新，不需要更新任务表中的顺序字段、该逻辑放在Divisionhistory表中
+		/*for(int i = 0;i < tList.size();i++){
+			TaskInfo task = tList.get(i);
+			task.setOrderNum(i);
+			dao.update(task);
+		}*/
+		System.out.println("排序后："+tList);
+	}
+	/**
+	 * 将某一零件的任务分配给某个人
+	 * @param componentName
+	 * @param workerId
+	 * @param 顺序号
+	 * @return
+	 */
+	public static boolean divitionComponentToPerson(String componentName,String workerId,Integer orderNum){
+		TaskInfo t = new TaskInfo();
+		t.setWorkerId(workerId);
+		t.setComponentName(componentName);
+		TaskInfoDao dao = new TaskInfoDao();
+		TaskInfo param = new TaskInfo();
+		param.setComponentName(componentName);
+		param.setState(0);
+		List<TaskInfo> list = dao.findAllOnCurrentDay(param);
+		if(list != null){
+			String stationIds = "";
+			String taskIds = "";
+			for(int j = 0;j < list.size();j++){
+				if(j == 0){
+					stationIds += list.get(j).getStationName();
+					taskIds += list.get(j).getId();
+				}
+				else{
+					stationIds += "," + list.get(j).getStationName();
+					taskIds += "," + list.get(j).getId();
+				}
+			}
+			DivideHistoryInfo f = new DivideHistoryInfo();
+			f.setOrderNum(orderNum);
+			f.setId(UUID.randomUUID().toString());
+			f.setState(1);
+			f.setTaskIds(taskIds);
+			f.setWorkerId(workerId);
+			f.setCreateTime(new Date());
+			f.setType(0);
+			//f.setStationIds(stationIds);
+			f.setStationNames(stationIds);
+			f.setWorkerName(componentName);
+			f.setComponentName(componentName);
+			DivideHistoryInfoDao d = new DivideHistoryInfoDao();
+			if(d.insert(f)){
+				return dao.divitionComponentToPerson(t);
+			}
+			return false;
+		}
+		return false;
+	}
+	/**
+	 * 根据区域id从task中检索出符合条件的零件名称返回
+	 * @return 零件名称集合（存放到HashMap 保证无重复）
+	 */
+	public static HashMap<String,String> findComponentFromTaskByAreaId(String areaId){
+		HashMap<String,String> componentMap = new HashMap<String,String>();
+		if("".equals(areaId) || areaId == null){
+			return null;
+		}
+		TaskInfo t = new TaskInfo();
+		AreaInfoMappingDao aDao = new AreaInfoMappingDao();
+		t.setState(0);
+		TaskInfoDao dao = new TaskInfoDao();
+		//查出当日所有未分配的任务
+		List<TaskInfo> tList = dao.findAllOnCurrentDay(t);
+		if(tList != null){
+			Iterator<TaskInfo> it = tList.iterator();
+			if(it != null){
+				while(it.hasNext()){
+					TaskInfo tt = it.next();
+					String stationName = tt.getStationName();//获得该零件所在工位
+					if(stationName != null && !"".equals(stationName)){
+						AreaInfoMapping mapping = new AreaInfoMapping();
+						mapping.setAreaId(areaId);
+						mapping.setMappingValue(stationName);
+						List<AreaInfoMapping> mList = aDao.findAll(mapping);
+						if(mList.size() > 0){//直接能够匹配上的是柱子号
+							componentMap.put(tt.getComponentName(), tt.getComponentName());
+							
+						}
+						else{
+							 if(stationName.length() >= 2){
+								// 截取工位号前两位
+								String stationNameSub = stationName.substring(0, 2);
+								AreaInfoMapping mapping1 = new AreaInfoMapping();
+								mapping1.setAreaId(areaId);
+								mapping1.setMappingValue(stationNameSub);
+								List<AreaInfoMapping> mList1 = aDao.findAll(mapping1);
+								if (mList1.size() > 0) {// 直接能够匹配上的是柱子号
+									componentMap.put(tt.getComponentName(), tt.getComponentName());
+
+								}
+							 }
+						}
+						//得到
+					}//里层list结束
+				}//while结束
+			}//it 判断结束
+		}//最外层list结束
+		return componentMap;
+	}
+	public static void main(String[] args){
+		String n = findNearestComponent("o21");
+		System.out.println(n);
+	}
+	/**
+	 * 对该零件所有工位按距离进行排序
+	 * @param componentName
+	 */
+	public static void sortComponentStation(String componentName,String stationId){
+		
+	}
+	/**
+	 * 相除保留n位小数
+	 * @param a
+	 * @param b
+	 * @param n
+	 * @return
+	 */
+	public static Double divideWithKeepNum(int a,int b,int n){
+		if(b == 0){
+			 return 0.0d; 
+		}
+		return new BigDecimal((float)a/b).setScale(n, BigDecimal.ROUND_HALF_UP).doubleValue();
+	}
+}

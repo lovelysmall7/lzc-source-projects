@@ -1,0 +1,507 @@
+package com.lzc.demo.controller.index;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileItemFactory;
+import org.apache.commons.fileupload.disk.DiskFileItemFactory;
+import org.apache.commons.fileupload.servlet.ServletFileUpload;
+
+import com.lzc.demo.dao.DivideHistoryInfoDao;
+import com.lzc.demo.dao.StationInfoDao;
+import com.lzc.demo.dao.TaskInfoDao;
+import com.lzc.demo.dao.WorkerInfoDao;
+import com.lzc.demo.model.DivideHistoryInfo;
+import com.lzc.demo.model.MapInfo;
+import com.lzc.demo.model.StationInfo;
+import com.lzc.demo.model.TaskInfo;
+import com.lzc.demo.model.WorkerInfo;
+import com.lzc.demo.service.index.SmartCCIndexService;
+import com.lzc.demo.controller.BaseServlet;
+import com.lzc.demo.util.CalculationUtil;
+import com.lzc.demo.util.CharDataUtil;
+import com.lzc.demo.util.ExcelHelper;
+import com.lzc.demo.util.ExcelUtil;
+import com.lzc.demo.util.PythonUtil;
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+@WebServlet("/smartCCIndex")
+public class SmartCCIndexController extends BaseServlet{
+	public void uploadEmergencyTaskExcel(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		String resultStr = new SmartCCIndexService().uploadEmergencyTaskExcel(request);
+		if ("-1".equals(resultStr)) {
+			result.put("code", "-1");
+			result.put("data", null);
+			String resultJson = JSONObject.fromObject(result).toString();
+			writeToView(response, resultJson);
+		}
+		if(("-2").equals(resultStr)){
+			result.put("code", "-2");
+			result.put("data", null);
+			String resultJson = JSONObject.fromObject(result).toString();
+			writeToView(response, resultJson);
+		}
+		else{
+			writeToView(response, resultStr);
+		}
+	}
+	 /**
+	  * 上传任务列表Excel
+	  * @param request
+	  * @param response
+	  * @throws ServletException
+	  * @throws IOException
+	  */
+	 public void uploadTaskExcel(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		 HashMap<String, Object> result = new HashMap<String, Object>();
+			String resultStr = new SmartCCIndexService().uploadTaskExcel(request);
+			if ("-1".equals(resultStr)) {
+				result.put("code", "-1");
+				result.put("data", null);
+				String resultJson = JSONObject.fromObject(result).toString();
+				writeToView(response, resultJson);
+			}
+			if(("-2").equals(resultStr)){
+				result.put("code", "-2");
+				result.put("data", null);
+				String resultJson = JSONObject.fromObject(result).toString();
+				writeToView(response, resultJson);
+			}
+			else{
+				writeToView(response, resultStr);
+			}
+	 }
+	 /**
+	  * 加载数据
+	  * @param request
+	  * @param response
+	  * @throws ServletException
+	  * @throws IOException
+	  */
+	 public void loadData(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		String resultJson =  new SmartCCIndexService().loadData(request);
+		System.out.println(resultJson);
+		writeToView(response, resultJson);
+	 }
+		
+		
+	private Integer getIndexOfStation(List<Map<String,Object>> pointList,String stationName){
+		for(int i = 0; i< pointList.size();i++){
+			Map<String,Object> map = pointList.get(i);
+			String stationName1 = (String) map.get("stationName");
+			if(stationName.equals(stationName1)){
+				return i;
+			}
+		}
+		return null;
+	}
+	/**
+	 * 处理人员分配任务请求
+	 *
+	 * This method is called when a form has its tag value method equals to post.
+	 * 
+	 * @param request the request send by the client to the server
+	 * @param response the response send by the server to the client
+	 * @throws ServletException if an error occurred
+	 * @throws IOException if an error occurred
+	 */
+	public void submitScheme(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		TaskInfoDao taskInfoDao = new TaskInfoDao();
+		response.setCharacterEncoding("utf-8");
+        response.setContentType("application/json");
+        PrintWriter out = response.getWriter();
+        HashMap<String,Object> resultHM = new HashMap<String,Object>();
+		String workersJson = request.getParameter("workersJson");
+		System.out.println(workersJson);
+		DivideHistoryInfoDao divideHistoryInfoDao = new DivideHistoryInfoDao();
+		//将前端传递的选择人员集合字符串转为json数组
+		JSONArray jarray = JSONArray.fromObject(workersJson);
+		DivideHistoryInfo f = new DivideHistoryInfo();
+		for(int i = 0; i < jarray.length() ; i ++){
+			JSONObject obj = (JSONObject) jarray.get(i);
+			String workerId = obj.getString("id");
+			String areaId  = obj.getString("areaId");//获得该员工的责任区域
+			//遍历所有任务 将属于该区域的任务分配给这个人
+			HashMap<String,String> componentMap = CalculationUtil.findComponentFromTaskByAreaId(areaId);
+			int order = 1;//这个地方暂时写死
+			if(componentMap != null){
+				for (Map.Entry<String, String> entry : componentMap.entrySet()) {  
+				    String componentName = entry.getKey(); 
+				    CalculationUtil.divitionComponentToPerson(componentName, workerId, order);
+				    order ++;
+				} 
+			}
+		}
+		//构建用来调用python的参数 json
+		List<Map<String,Object>> listA = CharDataUtil.getPointsData();
+		if(listA.size()> 0){
+			Map<String,Integer> coorDinateDate =CharDataUtil.adjustCoordinate(listA);
+			List<String> legendData = CharDataUtil.getlegendData(listA);
+			ArrayList<Map<String,Object>> eCharCategoriesList = CharDataUtil.getCategoriesList(legendData);
+			Map<String,Object> personLMap = CharDataUtil.buildParamForPython();
+			String paramJson = JSONObject.fromObject(personLMap).toString();
+			//python程序返回的参数P00001:[1,2,3,4],[4,2,1,3],P00004:[1,3,4,5,6]
+			//String findPathJson = new PythonUtil().findPathProcessByPython(paramJson);
+			//--20171225 优化，如果分配零件的时候 调用python算法成功  将结果集存放到session中 下次加载直接从session中取 而不是重新等待python算法执行
+			//if(findPathJson != null && !"".equals(findPathJson)){
+				//request.getSession().setAttribute("findPathJson", findPathJson);
+				List<DivideHistoryInfo> dList1 = divideHistoryInfoDao.findAllOnCurrentDay(f);
+				//更新顺序号
+				//updateOrderNumFromPython(dList1, findPathJson, personLMap);
+				//生成各个点之间的连线
+				//ArrayList<ArrayList<Object>> finalLineList = CharDataUtil.buildLineList(findPathJson, personLMap, listA);
+				
+				//ArrayList<Object> finalLine = finalLineList.get(finalLineList.size() - 1);// 获得最后一组连线
+				//request.getSession().setAttribute("finalLine", finalLine);
+				//ArrayList<Object> arrowList = CharDataUtil.getArrowList(finalLine,listA,null);//获得箭头指向关系
+				//构建echarts（工位点） 的图表
+				resultHM.put("range", coorDinateDate);
+				resultHM.put("points", listA);
+				resultHM.put("legendData", legendData);
+				resultHM.put("eCharCategoriesList", eCharCategoriesList);
+				//resultHM.put("lineData",finalLineList);
+				//resultHM.put("arrowList",arrowList);
+			}
+			
+		//}
+		resultHM.put("code", 0);
+		TaskInfo t1 = new TaskInfo();
+		List<TaskInfo> tList = taskInfoDao.findAllOnCurrentDay(t1);
+		resultHM.put("data", tList); 
+		List<DivideHistoryInfo> dList = divideHistoryInfoDao.findAllOnCurrentDay(f);
+	
+		resultHM.put("data1", dList); 
+		//-------------构建图表数据---------------------
+		Map<String,Object> charDataMap = CharDataUtil.newBuildCharData();
+		Object categoriesList = charDataMap.get("categories");
+		Object seriesList = charDataMap.get("series");
+		resultHM.put("categories", categoriesList);
+		resultHM.put("series", seriesList);
+		Integer sNum = (Integer) charDataMap.get("sNum");
+		resultHM.put("sNum", sNum);
+		String resultJson = JSONObject.fromObject(resultHM).toString();
+		out.write(resultJson);
+        out.flush();
+        out.close();
+		System.out.println("--");
+	}
+	/**
+	 * 处理人员分配任务请求 SmartCC_EN_002.jsp 调用
+	 * 20180227
+	 * This method is called when a form has its tag value method equals to post.
+	 * 
+	 * @param request the request send by the client to the server
+	 * @param response the response send by the server to the client
+	 * @throws ServletException if an error occurred
+	 * @throws IOException if an error occurred
+	 */
+	public void submitScheme_002(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		TaskInfoDao taskInfoDao = new TaskInfoDao();
+		List<String> list = taskInfoDao.getTaskComponentList();
+		Map<String,List<String>> paramList = new HashMap<String,List<String>>();
+		DivideHistoryInfoDao divideHistoryInfoDao = new DivideHistoryInfoDao();
+		String workersJson = request.getParameter("workersJson");
+		JSONArray parray = JSONArray.fromObject(workersJson);
+		String pNum = parray.length() + "";
+		//只存放零件名称的集合 方便后面取值
+		List<String> componentList = new ArrayList<String>();
+		DivideHistoryInfo f = new DivideHistoryInfo();
+		if(list != null){
+			for(int i = 0;i < list.size();i++){
+				String componentName = list.get(i);
+				List<String> stationList = taskInfoDao.getStationByComponent(componentName);
+				//map 结构： C01:工位1、工位2、工位3...
+				paramList.put(list.get(i), stationList);
+				componentList.add(componentName);
+			}
+		}
+		//这个是将要传给python的第一个参数 当日所有的任务零件 涉及的工位
+		String paramJson = JSONObject.fromObject(paramList).toString();
+		//这个是要传给python的第二个参数 工人数目
+		WorkerInfoDao wDao = new WorkerInfoDao();
+		List<WorkerInfo> wList = wDao.findAll();
+		//第三个参数  excel地图文件的存放路径
+		String excelPath = this.getClass().getClassLoader().getResource("/").getFile() + "map.xlsx";
+		//String excelPath ="D:/map.xlsx";
+		excelPath = excelPath.substring(1,excelPath.length()); 
+		//最外层的size 是人员的数量
+		//String pythonResult = "[[0,2,6],[3,5,7]]";
+		//"{'0': [0, 4], '1': [1, 2, 3]}";//
+		String pythonResult = new PythonUtil().getDivisionResultFromPython(paramJson, pNum+"", excelPath);
+		JSONObject obj = JSONObject.fromObject(pythonResult);
+		for(int i = 0;i < parray.length();i++){
+			JSONObject pobj = (JSONObject) parray.get(i);
+			String workerId = pobj.getString("id");
+			JSONArray taskIndexArray = obj.getJSONArray(i + "");
+			for(int l = 0;l < taskIndexArray.length();l++){
+				int index = taskIndexArray.getInt(l);
+				String componentName = componentList.get(index);
+				CalculationUtil.divitionComponentToPerson(componentName, workerId, l);
+			}
+			
+		}
+		HashMap<String,Object> resultHM = new HashMap<String,Object>();
+		resultHM.put("code", 0);
+		TaskInfo t1 = new TaskInfo();
+		List<TaskInfo> tList = taskInfoDao.findAllOnCurrentDay(t1);
+		resultHM.put("data", tList); 
+		List<DivideHistoryInfo> dList = divideHistoryInfoDao.findAllOnCurrentDay(f);
+	
+		resultHM.put("data1", dList); 
+		//-------------构建图表数据---------------------
+		Map<String,Object> charDataMap = CharDataUtil.newBuildCharData();
+		Object categoriesList = charDataMap.get("categories");
+		Object seriesList = charDataMap.get("series");
+		resultHM.put("categories", categoriesList);
+		resultHM.put("series", seriesList);
+		Integer sNum = (Integer) charDataMap.get("sNum");
+		resultHM.put("sNum", sNum);
+		String resultJson = JSONObject.fromObject(resultHM).toString();
+		writeToView(response, resultJson);
+	}
+	/**
+	 * 将python返回的结果的序号更新到数据库
+	 * @param dList
+	 * @param findPathJson
+	 * @param personLMap
+	 */
+	private void updateOrderNumFromPython(List<DivideHistoryInfo> dList,String findPathJson,Map<String,Object> personLMap){
+		JSONObject jObj = JSONObject.fromObject(findPathJson);
+		Iterator iterator = jObj.keys();//获取返回json对象所有的key
+		TaskInfoDao dao = new TaskInfoDao();
+		DivideHistoryInfoDao dao1 = new DivideHistoryInfoDao();
+		while(iterator.hasNext()){
+		     String key = (String) iterator.next();
+		     String value = jObj.getString(key);
+		     //这个数组的最后一个元素就是最终的顺序
+		     /**
+		      * 比如这个数组最后一个元素为P00004工人的[5,3,2,4,1](数组的每一个元素还是一个数组类型)
+		      * 那么从personLMap中找到该P00004员工的工位集合：比如为05_001_2,05_001_3,05_001_4,05_001_5,05_001_6
+		      * 那么05_001_6这个工位代表的零件的序号就是1同理05_001_4是2，05_001_3是3，05_001_5是4，05_001_2是5
+		      * 将工位对应的零件编号的顺序更新到divide_history_info表中
+		      */
+		     JSONArray jr1 = JSONArray.fromString(value);
+		     JSONArray lastPath =  (JSONArray) jr1.get(jr1.length() - 1);
+		     ArrayList<String> stations  = (ArrayList<String>) personLMap.get(key);
+		     for(int i = 0;i < lastPath.length();i++){
+		    	 int order = i + 1;//从1开始 所以+1
+		    	 Integer index = lastPath.getInt(i);//这个是为了从stations拿到指定位置的工位
+		    	 if(index < stations.size()){
+		    		 String stationName = stations.get(index);
+			    	 TaskInfo t = new TaskInfo();
+			    	 t.setStationName(stationName);
+			    	 List<TaskInfo> tList = dao.findAllOnCurrentDay(t);
+			    	 if(tList.size() > 0){
+			    		 String componentName = tList.get(0).getComponentName();
+			    		 for(int k = 0;k < dList.size();k++){
+			    			 DivideHistoryInfo d = dList.get(k);
+			    			 if(d.getComponentName().equals(componentName)){
+			    				 d.setOrderNum(order);
+			    				 dao1.update(d);
+			    			 }
+			    		 }
+			    	 }
+		    	 }
+		    	 
+		     }
+		}
+	}
+	/**
+	 * 改变状态
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void changeState(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		String resultJson = new SmartCCIndexService().changeState(request);
+        writeToView(response, resultJson);
+	}
+	/**
+	 * 查询分配结果
+	 */
+	public void searchDivideResult(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		response.setCharacterEncoding("utf-8");
+        response.setContentType("application/json");
+        PrintWriter out = response.getWriter();
+		Integer state = 0;
+		String searchWorker = request.getParameter("searchWorker");
+		String searchState = request.getParameter("searchState");
+		if(searchState != null && !"".equals(searchState)){
+			state = Integer.parseInt(searchState);
+		}
+		DivideHistoryInfoDao dao = new DivideHistoryInfoDao();
+		DivideHistoryInfo d = new DivideHistoryInfo();
+		d.setWorkerId(searchWorker);
+		d.setState(state);
+		List<DivideHistoryInfo> list = dao.findAllOnCurrentDay(d);
+		Map<String,Object> resultHM = new HashMap<String,Object>();
+		resultHM.put("code", 0);
+        resultHM.put("data", list);
+        String resultJson = JSONObject.fromObject(resultHM).toString();
+        out.write(resultJson);
+        out.flush();
+        out.close();
+	}
+	/**
+	 * 导出分配结果excel
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void ExportDivideHistoryInfo(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		DivideHistoryInfoDao dao = new DivideHistoryInfoDao();
+		String searchWorker = request.getParameter("searchWorker");
+		String searchState = request.getParameter("searchState");
+		HashMap<String,Object> param = new HashMap<String,Object>();
+		param.put("workerId", searchWorker);
+		param.put("state", searchState);
+		List<HashMap<String,Object>> dataList = dao.selectMapByParam(param);
+		HashMap<String,Object> title1 = new HashMap<String,Object>();
+		title1.put("label", "Staff No.");
+		title1.put("property", "workerId");
+		HashMap<String,Object> title2 = new HashMap<String,Object>();
+		title2.put("label", "Component");
+		title2.put("property", "componentName");
+		HashMap<String,Object> title3 = new HashMap<String,Object>();
+		title3.put("label", "Order");
+		title3.put("property", "orderNum");
+		HashMap<String,Object> title4 = new HashMap<String,Object>();
+		title4.put("label", "Part station");
+		title4.put("property", "stationNames");
+		HashMap<String,Object> title5 = new HashMap<String,Object>();
+		title5.put("label", "Status");
+		title5.put("property", "state");
+		
+		List<Object> titleArray = new ArrayList<Object>();
+		titleArray.add(title1);
+		titleArray.add(title2);
+		titleArray.add(title3);
+		titleArray.add(title4);
+		titleArray.add(title5);
+		String titleJson = JSONArray.fromObject(titleArray).toString();
+		ExcelUtil.exportExcel(request, response, "exportData.xls", titleJson, dataList);
+	}
+	/**
+	 * 加载人员列表
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void loadWorkers(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		String loadType = request.getParameter("loadType");
+		response.setCharacterEncoding("utf-8");
+        response.setContentType("application/json");
+        PrintWriter out = response.getWriter();
+		WorkerInfoDao dao = new WorkerInfoDao();
+		List<WorkerInfo> list = dao.findAll();
+		WorkerInfo w = new WorkerInfo();
+		w.setId("");
+		w.setName("Choose one");
+		if(!"datagrid".equals(loadType)){
+			list.add(0, w);
+		}
+		
+		String resultJson = JSONArray.fromObject(list).toString();
+        out.write(resultJson);
+        out.flush();
+        out.close();
+	}
+	/**
+	 * 获取演示寻径过程数据调用此函数
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void viewPath(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		ArrayList<ArrayList<HashMap<String,Object>>> mapinfo = MapInfo.getInstanse().getMapInfo();
+		//构建地图信息=--------------------
+		ArrayList<ArrayList<Integer>> mapData = new ArrayList<ArrayList<Integer>>();
+		for(int i = 0 ;i < mapinfo.size();i++){
+			ArrayList<HashMap<String,Object>> row = mapinfo.get(i);
+			ArrayList<Integer> rowData = new ArrayList<Integer>();
+			for(int j = 0 ; j < row.size() ;j++){
+				HashMap<String,Object> colInfo = row.get(j);
+				String colType = (String)colInfo.get("colType");
+				//0路径1障碍
+				if("0".equals(colType)){
+					rowData.add(1);
+				}
+				else{
+					rowData.add(0);
+				}
+			}
+			mapData.add(rowData);
+		}
+		//构建地图信息结束-------------------------
+		
+		//构建人员任务分配结果json----------------------
+		ArrayList<HashMap<String,Object>> pList = buildViewPathData();
+		//构建人员分配结果json结束-----------------------
+		HashMap<String, Object> result = new HashMap<String, Object>();
+		result.put("code","0");
+		result.put("mapData",mapData);
+		result.put("pList",pList);
+		String resultJson = JSONObject.fromObject(result).toString();
+		System.out.println(resultJson);
+		writeToView(response, resultJson);
+	}
+	private ArrayList<HashMap<String,Object>> buildViewPathData(){
+		DivideHistoryInfoDao dDao = new DivideHistoryInfoDao();
+		StationInfoDao sDao = new StationInfoDao();
+		ArrayList<DivideHistoryInfo> dList = (ArrayList<DivideHistoryInfo>) dDao.findAllOnCurrentDay(new DivideHistoryInfo());
+		Map<String,String> idMap = new LinkedHashMap<String,String>();
+		for(int i = 0;i < dList.size();i++){
+			idMap.put(dList.get(i).getWorkerId(), dList.get(i).getWorkerId());
+		}
+		ArrayList<HashMap<String,Object>> pList = new ArrayList<HashMap<String,Object>>();
+		for (Map.Entry<String, String> entry : idMap.entrySet()) {  
+		    String workerId = entry.getKey(); 
+		    ArrayList<HashMap<String,Object>> stationList = new ArrayList<HashMap<String,Object>>();
+		    for(int i = 0;i < dList.size();i++){
+		    	DivideHistoryInfo d = dList.get(i);
+		    	String wId = d.getWorkerId();
+		    	if(wId.equals(workerId)){
+		    		String stationNames = d.getStationNames();
+		    		String[] sArray = stationNames.split(",");
+		    		String stationName = sArray[0];
+		    		StationInfo sinfo = sDao.findById(stationName);
+		    		String x = sinfo.getxAxis();
+		    		String y = sinfo.getyAxis();
+		    		HashMap<String,Object> pInfo = new HashMap<String,Object>();
+		    		pInfo.put("name", stationName);
+		    		pInfo.put("x", Integer.parseInt(x));
+		    		pInfo.put("y", Integer.parseInt(y));
+		    		stationList.add(pInfo);
+		    	}
+		    }
+		    HashMap<String,Object> pMap = new HashMap<String,Object>();
+		    pMap.put(workerId, stationList);
+		    pList.add(pMap);
+		}  
+		return pList;
+	}
+}

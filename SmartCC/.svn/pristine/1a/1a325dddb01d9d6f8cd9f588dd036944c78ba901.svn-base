@@ -1,0 +1,43 @@
+package com.lzc.demo.dao;
+import java.util.List;
+
+import org.apache.ibatis.session.SqlSession;
+
+import com.lzc.demo.model.DivideHistoryInfo;
+import com.lzc.demo.util.SqlMapInitUtil;
+public class DivideHistoryInfoDao extends BaseDao<DivideHistoryInfo>{
+	public DivideHistoryInfoDao(){
+		setSqlNameSpace(DivideHistoryInfo.class.getName());
+	}
+	public boolean deleteByTaskId(String taskId){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		int result = session.delete(sqlNameSpace + "." + "deleteByTaskId", taskId);
+		session.commit();
+		session.close();
+		return (result > 0);
+	}
+	/**
+	 * 查多个员工的任务分配信息
+	 * @param workerIds
+	 * @return
+	 */
+	public List<DivideHistoryInfo> findByWorkerIds(String workerIds){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<DivideHistoryInfo> list = session.selectList(sqlNameSpace + "." + "findByWorkIds",workerIds);
+		session.close();
+		return list;
+	}
+	public boolean deleteCurrentData(){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		int result = session.delete(sqlNameSpace + "." + "deleteCurrentData");
+		session.commit();
+		session.close();
+		return (result > 0);
+	}
+	public List<DivideHistoryInfo> findUnfinishOnCurrentDay(){
+		SqlSession session = SqlMapInitUtil.getSqlSession();
+		List<DivideHistoryInfo> list = session.selectList(sqlNameSpace + "." + "findUnfinishOnCurrentDay");
+		session.close();
+		return list;
+	}
+}

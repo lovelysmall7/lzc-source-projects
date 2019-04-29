@@ -1,0 +1,269 @@
+package com.lzc.demo.util.optimize;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+
+import org.springframework.util.StringUtils;
+
+import com.lzc.demo.dao.DaoContainer;
+import com.lzc.demo.dao.StationInfoDao;
+import com.lzc.demo.model.DivideHistoryInfo;
+import com.lzc.demo.model.MapInfo;
+import com.lzc.demo.model.StationInfo;
+import com.lzc.demo.util.SysStringUtil;
+import com.lzc.demo.util.Astar.AStar;
+import com.lzc.demo.util.Astar.AStarMapInfo;
+import com.lzc.demo.util.Astar.Node;
+
+/**
+ * 这个是保留之前的算法逻辑
+ * @author TR
+ *
+ */
+public class OptimizeAlgoImpl3 extends BaseOptimizeAlgo implements StartOptimizeInter{
+
+	@Override
+	public void startOptimize(List<DivideHistoryInfo> workerTaskList, String workerId) {
+		// TODO Auto-generated method stub
+		divideAlgo(workerId,workerTaskList,true);//紧急任务
+		divideAlgo(workerId,workerTaskList,false);//普通任务
+		
+	}
+
+	@Override
+	public List<DivideHistoryInfo> divideAlgo(String workerId,List<DivideHistoryInfo> dList,boolean isEmergency) {
+		// TODO Auto-generated method stub
+		List<DivideHistoryInfo> queue = new ArrayList<DivideHistoryInfo>();
+		DivideHistoryInfo dInfo = DaoContainer.dDao.selectLastComponentCurrentBatch(workerId);
+		Iterator<DivideHistoryInfo> iter1 = dList.iterator();
+		while(iter1.hasNext()){
+			DivideHistoryInfo d = iter1.next();
+			if(isEmergency){
+				if(d.getType() == 1){
+					queue.add(d);
+				}
+			}
+			else{
+				if(d.getType() != 1){
+					queue.add(d);
+				}
+			}
+		}
+		if(queue.size() == 0){
+			return queue;
+		}
+		String b = "0";
+		Integer maxIndex = -1;
+		boolean isHasPre = false;
+		if(dInfo != null){
+			String resultStr = judgeIsHasPre(dInfo,queue);
+			String a = resultStr.substring(0,1);//是否以上一个点为起始点
+			b = resultStr.substring(1,2);//以左上角起始还是右上角起始
+			//如果之前有紧急任务 最大序号应该从最后一个紧急任务开始 + 1
+			maxIndex = dInfo.getOrderNum() + 1;
+			if("1".equals(a)){
+				isHasPre = true;
+			}
+			
+		}
+		
+		
+		List<DivideHistoryInfo> newQueue = new ArrayList<DivideHistoryInfo>();
+		int count = 0;
+		while(queue.size() > 0){
+			if(count == 0){
+				DivideHistoryInfo element = new DivideHistoryInfo();
+				if(dInfo != null){
+					newQueue.add(dInfo);
+				}
+				else{
+					element = findNextComponent(null, queue, b);
+					sortComponentStations(element);
+					newQueue.add(element);
+				}
+			}
+			else{
+				DivideHistoryInfo preElement = newQueue.get(newQueue.size() - 1);
+				DivideHistoryInfo element = findNextComponent(preElement, queue, b);
+				newQueue.add(element);
+			}
+			count ++;
+		}
+		updateOrderNum(newQueue, maxIndex, isHasPre);
+		return newQueue;
+	}
+	public DivideHistoryInfo findNextComponent(DivideHistoryInfo preComponent,List<DivideHistoryInfo> dList,String startPointFlag){
+		AStar aStar = new AStar();
+		AStarMapInfo mapInfo = MapInfo.getInstanse().getAstartMapInfo();
+		String initxStr = "0";
+		String inityStr = "0";
+		if("1".equals(startPointFlag)){
+			initxStr = "267";
+			inityStr = "385";
+		}
+		Integer x = Integer.parseInt(initxStr);
+		Integer y = Integer.parseInt(inityStr);
+		//如果上一个工位信息不空 说明不是第一个点了 需要通过它去寻找下一个零件
+		if(preComponent != null){
+			String stationIds = preComponent.getStationIds();
+			String stations[] = stationIds.split(",");
+			String preStationName = stations[stations.length - 1];
+			
+			StationInfo preStationInfo = DaoContainer.sDao.findById(preStationName);
+			String preX = preStationInfo.getxAxis();
+			String preY = preStationInfo.getyAxis();
+			preX = SysStringUtil.formatIntegerStr(preX);
+			preY = SysStringUtil.formatIntegerStr(preY);
+			//excel 索引从1 开始  地图索引从0开始  坐标值需要 -1
+			x = Integer.parseInt(preX) - 1;
+			y = Integer.parseInt(preY) - 1;
+			
+		}
+		
+		
+		int minZoomPotinIndex = 0;
+		int minPointDistanse = -1;
+		String basicStationName = "";
+		Iterator<DivideHistoryInfo> it = dList.iterator();
+		Node ssNode = new Node(x,y);
+		int ecount = 0;
+		while(it.hasNext()){
+			DivideHistoryInfo dinfo = it.next();
+			String stationIds = dinfo.getStationIds();
+			String stations[] = stationIds.split(",");
+			for(int i = 0;i < stations.length;i++){
+				String stationName = stations[i];
+				StationInfo sinfo = DaoContainer.sDao.findById(stationName);
+				String xstr = sinfo.getxAxis();
+				String ystr = sinfo.getyAxis();
+				xstr = SysStringUtil.formatIntegerStr(xstr)	;
+				ystr = SysStringUtil.formatIntegerStr(ystr)	;
+				Node eNode = new Node(Integer.parseInt(xstr) - 1,Integer.parseInt(ystr) - 1);
+				mapInfo.setInfo(ssNode, eNode);
+				aStar.start(mapInfo);
+				Integer distanse_1 = eNode.G;//起始位置和终止位置的距离
+				if(minPointDistanse == -1){
+					minPointDistanse = distanse_1;
+					minZoomPotinIndex = ecount;
+					basicStationName = stationName;
+				}
+				else{
+					if(distanse_1 < minPointDistanse){
+						minPointDistanse = distanse_1;
+						minZoomPotinIndex = ecount;
+						basicStationName = stationName;
+					}
+					//20180510 若出现同样距离最小的工位 则判断其一组工位数目 数目是1的 优先，其余任何数目都一样
+					//例如 01,02,03     01  可以避免先走 01,02,03  再回到01   而是：01,01,02,03 这样就省去了03-01的距离
+					else{
+						if(distanse_1 == minPointDistanse){
+							if(stations.length == 1){
+								minZoomPotinIndex = ecount;
+								basicStationName = stationName;
+							}
+						}
+					}
+				}
+			}
+			ecount++;
+		}
+		//找最小点方法没确定 先当做第一个点
+		//*********************找到最小的点位置结束
+		Iterator<DivideHistoryInfo> itt = dList.iterator();
+		int count = 0;//记录queue 循环次数
+		//这次的循环目的就是根据上面的minZoomPotinIndex 结果 取出queue中的元素分配给这个人 并且从queue中删除
+		while(itt.hasNext()){
+			DivideHistoryInfo dinfo1 = itt.next();
+			if(count == minZoomPotinIndex){
+				itt.remove();
+				dinfo1.setBasicStationName(basicStationName);
+				return dinfo1;
+			}
+			count++;
+		}
+		return null;
+	}
+	/**
+	 * 根据基准点 对零件内工位按寻径距离进行排序
+	 */
+	public void sortComponentStations(DivideHistoryInfo dinfo){
+		AStar aStar = new AStar();
+		AStarMapInfo mapInfo = MapInfo.getInstanse().getAstartMapInfo();
+		StationInfoDao sDao = new StationInfoDao();
+		String basicStationName = dinfo.getBasicStationName();
+		System.out.println("basicStationName : " + basicStationName + "======================");
+		StationInfo station1 = sDao.findById(basicStationName);
+		
+		String sxStr = station1.getxAxis();
+		String syStr = station1.getyAxis();
+		sxStr = SysStringUtil.formatIntegerStr(sxStr);
+		syStr = SysStringUtil.formatIntegerStr(syStr);
+		Integer sx = Integer.parseInt(sxStr) - 1;
+		Integer sy = Integer.parseInt(syStr) - 1;
+		System.out.println("工位号：" + basicStationName + "  起始点坐标：（" + sx + "," + sy + "）");
+		Node sNode = new Node(sx,sy);
+		String stationIds = dinfo.getStationIds();
+		String[] stations = stationIds.split(",");
+		List<String> sortStationList = new ArrayList<String>();
+		List<String> stationList = new ArrayList<String>();
+		for(int i = 0;i < stations.length;i++){
+			stationList.add(stations[i]);
+		}
+		while(stationList.size() > 0){
+			Iterator<String> it = stationList.iterator();
+			Integer minDistanse = 0;
+			int count = 0;
+			Integer index = 0;
+			while(it.hasNext()){
+				String stationName = it.next();
+				StationInfo station2 = sDao.findById(stationName);
+				String exStr = station2.getxAxis();
+				String eyStr = station2.getyAxis();
+				exStr = SysStringUtil.formatIntegerStr(exStr);
+				eyStr = SysStringUtil.formatIntegerStr(eyStr);
+				Integer ex = Integer.parseInt(exStr) - 1;
+				Integer ey = Integer.parseInt(eyStr) - 1;
+				Node eNode = new Node(ex,ey);
+				mapInfo.setInfo(sNode, eNode);
+				aStar.start(mapInfo);
+				Integer distanse = eNode.G;//起始位置和终止位置的距离
+				if(count == 0){
+					minDistanse = distanse;
+					index = count;
+				}
+				else{
+					if(distanse < minDistanse){
+						minDistanse = distanse;
+						index = count;
+					}
+				}
+				count++;
+			}
+			Iterator<String> ittt = stationList.iterator();
+			int count1 = 0;//记录queue 循环次数
+			//这次的循环目的就是根据上面的minDistanseQueueIndex 结果 取出queue中的元素分配给这个人 并且从queue中删除
+			while(ittt.hasNext()){
+				String stationName = ittt.next();
+				if(count1 == index){
+					ittt.remove();
+					sortStationList.add(stationName);
+					break;
+				}
+				count1++;
+			}
+		}
+		String sortStationsStr = "";
+		for(int i = 0;i < sortStationList.size();i++){
+			if(i == 0){
+				sortStationsStr += sortStationList.get(i);
+			}
+			else{
+				sortStationsStr += "," + sortStationList.get(i);
+			}
+		}
+		//将排好序的工位集合重新放回dinfo中
+		dinfo.setStationIds(sortStationsStr);
+	}
+}

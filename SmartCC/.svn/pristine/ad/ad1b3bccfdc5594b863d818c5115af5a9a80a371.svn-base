@@ -1,0 +1,112 @@
+package com.lzc.demo.controller.dataconfig;
+
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.springframework.util.StringUtils;
+
+import com.lzc.demo.controller.BaseServlet;
+import com.lzc.demo.dao.AreaInfoDao;
+import com.lzc.demo.dao.AreaInfoMappingDao;
+import com.lzc.demo.dao.GroupInfoDao;
+import com.lzc.demo.dao.WorkerInfoDao;
+import com.lzc.demo.model.AreaInfo;
+import com.lzc.demo.model.GroupInfo;
+import com.lzc.demo.model.TaskInfo;
+import com.lzc.demo.util.MydateUtil;
+
+@WebServlet("/dataConfig")
+public class DataConfigController extends BaseServlet{
+	/**
+	 * load area info
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+	public void loadAreaList(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		AreaInfoDao aDao = new AreaInfoDao();
+		List<AreaInfo> areaList = aDao.findAll();
+		for(int i = 0;i < areaList.size();i++){
+			AreaInfo ttt = areaList.get(i);
+			ttt.setCreateTimeStr(sdf.format(ttt.getCreateTime()));
+		}
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		result.put("code", 0);
+		result.put("rows", areaList);
+		writeToView(response, result);
+	}
+	/**
+	 * load group info
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void loadGroupList(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		GroupInfoDao gDao = new GroupInfoDao();
+		List<GroupInfo> groupList = gDao.findAll();
+		for(int i = 0;i < groupList.size();i++){
+			GroupInfo ttt = groupList.get(i);
+			ttt.setCreateTimeStr(sdf.format(ttt.getCreateTime()));
+		}
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		result.put("code", 0);
+		result.put("rows", groupList);
+		writeToView(response, result);
+	}
+	/**
+	 * load station info
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void loadStations(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		AreaInfoMappingDao amDao = new AreaInfoMappingDao();
+		String areaId = request.getParameter("areaId");
+		HashMap<String,Object> param = new HashMap<String,Object>();
+		if(!StringUtils.isEmpty(areaId)){
+			param.put("areaId", areaId);
+		}
+		List<HashMap<String,Object>> stationList = amDao.selectAllAreaStations(param);
+		result.put("code", 0);
+		result.put("stations", stationList);
+		writeToView(response, result);
+	}
+	/**
+	 * load workers info
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	
+	public void loadWorkers(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		WorkerInfoDao wDao = new WorkerInfoDao();
+		HashMap<String,Object> param = new HashMap<String,Object>();
+		List<HashMap<String,Object>> workerList = wDao.selectWorkerFullInfo(param);
+		for(int i = 0;i < workerList.size();i++){
+			HashMap<String,Object> ttt = workerList.get(i);
+			ttt.put("createTimeStr", (sdf.format(ttt.get("createTime"))));
+		}
+		result.put("code", 0);
+		result.put("rows", workerList);
+		writeToView(response, result);
+	}
+}

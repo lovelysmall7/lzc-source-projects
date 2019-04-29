@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace命名空间，为了对sql语句进行隔离，方便管理 ，mapper开发dao方式，使用namespace有特殊作用 -->
+<mapper namespace="com.lzc.demo.model.DivideHistoryInfo">
+<!-- 在mapper.xml文件中配置很多的sql语句，执行每个sql语句时，封装为MappedStatement对象
+mapper.xml以statement为单位管理sql语句
+ -->
+    <!-- 根据id查询用户信息 -->
+    <!-- 
+        id：唯一标识 一个statement
+        #{}：表示 一个占位符，如果#{}中传入简单类型的参数，#{}中的名称随意
+        parameterType：输入 参数的类型，通过#{}接收parameterType输入 的参数
+        resultType：输出结果 类型，不管返回是多条还是单条，指定单条记录映射的pojo类型
+     -->
+    <select id="findAll" parameterType="com.lzc.demo.model.DivideHistoryInfo" resultType="com.lzc.demo.model.DivideHistoryInfo"> 
+    	SELECT * FROM divide_history_info where 1 = 1 
+    	<if test="componentName != null and componentName != '' ">
+    		and componentName = #{componentName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and workerId = #{workerId}
+    	</if>
+    	<if test="state != null and state != '' ">
+    		and state = #{state} 
+    	</if>
+    	order by createTime asc
+    </select>
+    
+    <select id="selectMapByParam" parameterType="java.util.HashMap" resultType="java.util.HashMap"> 
+    	SELECT * FROM divide_history_info where date(createTime) = curdate() 
+    	<if test="componentName != null and componentName != '' ">
+    		and componentName = #{componentName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and workerId = #{workerId}
+    	</if>
+    	<if test="state != null and state != '' ">
+    		and state = #{state} 
+    	</if>
+    	order by workerId asc,orderNum asc, componentName asc;
+    </select>
+     <select id="findAllOnCurrentDay" parameterType="com.lzc.demo.model.DivideHistoryInfo" resultType="com.lzc.demo.model.DivideHistoryInfo"> 
+    	SELECT * FROM divide_history_info where date(createTime) = curdate() 
+    	<if test="componentName != null and componentName != '' ">
+    		and componentName = #{componentName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and workerId = #{workerId}
+    	</if>
+    	<if test="state != null and state != '' ">
+    		and state = #{state} 
+    	</if>
+    	order by workerId asc,orderNum asc, componentName asc;
+    </select>
+    <select id="selectLastComponent" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    		SELECT * FROM `divide_history_info` where workerId = #{value} 
+    		and date(createTime) = curdate() 
+    		ORDER BY orderNum desc limit 1
+    </select>
+    
+     <select id="selectLastComponentCurrentBatch" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    		SELECT * FROM `divide_history_info` where workerId = #{value} 
+    		and currentBatch = ( select MAX(currentBatch) from divide_history_info)
+    		<![CDATA[and orderNum > -1]]>
+    		ORDER BY orderNum desc limit 1
+    </select>
+    <update id="resetCurrentBatchData" parameterType="java.lang.String">
+    	update `divide_history_info` set orderNum = -1 where workerId = #{value} 
+    		and currentBatch = (select t.currentBatch from ( select MAX(currentBatch) as currentBatch from divide_history_info)t)
+			<![CDATA[and state <> 3]]>
+    </update>
+    <!-- 查找某人已经完成的最后一个零件 -->
+    <select id="selectFinishedLastComponent" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    		SELECT * FROM `divide_history_info` where workerId = #{value} 
+    		and date(createTime) = curdate() 
+    		<![CDATA[and state = 3 ]]>
+    		ORDER BY createTime desc ,orderNum desc limit 1
+    </select>
+    <select id="findUnfinishOnCurrentDay" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	SELECT * FROM divide_history_info where date(createTime) = curdate() 
+    	and state <![CDATA[<> 3]]> 
+    	order by workerId asc,orderNum asc, componentName asc;
+    </select>
+    <!-- 查询最新批次的数据 -->
+    <select id="findCurrentBatchData" parameterType="java.util.HashMap" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	select * from divide_history_info where currentBatch = ( select MAX(currentBatch) from divide_history_info)
+    	<if test="state != null">
+    		and state = #{state} 
+    	</if>
+    	<if test="workerId != null">
+    		and workerId = #{workerId}  
+    	</if>
+    	<if test="searchComponent != null and searchComponent != '' ">
+    		and componentName like '%${searchComponent}%' 
+    	</if>
+    	<if test="searchType != null and searchType != '' ">
+    		and type = #{searchType} 
+    	</if>
+    	<if test="selectFlag != null and selectFlag != '' ">
+    		<if test="selectFlag == 'findReadyOptimizeData'.toString()">  
+    			 and state <![CDATA[<> 3]]>  and workerId is not null
+    		</if>
+    	</if>
+    	<if test="NotSeeFinish != null and NotSeeFinish != '' ">
+    		and state <![CDATA[<> 3]]>
+    	</if>
+		ORDER BY workerId asc, orderNum asc,createTime asc
+    </select>
+     <!-- 查询最新批次的数据 -->
+    <select id="findCurrentBatchMap" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+    	select * from divide_history_info where currentBatch = ( select MAX(currentBatch) from divide_history_info)
+    	<if test="state != null">
+    		and state = #{state} 
+    	</if>
+    	<if test="searchType != null and searchType != '' ">
+    		and type = #{searchType} 
+    	</if>
+    	<if test="searchComponent != null and searchComponent != '' ">
+    		and componentName like '%${searchComponent}%' 
+    	</if>
+    	<if test="selectFlag != null and selectFlag != '' ">
+    		<if test="selectFlag == 'findReadOptimizeData'.toString()">  
+    			 and state <![CDATA[<> 3]]>  and workerId is not null
+    		</if>
+    	</if>
+		ORDER BY workerId asc, orderNum asc,createTime asc
+    </select>
+    <!-- 查询当前最新批次 -->
+    <select id="findMaxBatch" resultType="java.lang.String">
+    	select MAX(currentBatch) from divide_history_info
+    </select>
+    <select id="findByWorkIds" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	SELECT * FROM divide_history_info where date(createTime) = curdate() 
+    	and find_in_set(workerId,#{value})  order by workerId asc,orderNum asc, componentName asc
+    </select>
+    <insert id="insert" parameterType="com.lzc.demo.model.DivideHistoryInfo">
+    	insert into divide_history_info (
+    		id,
+    		componentName,
+    		stationIds,
+    		stationNames,
+    		workerId,
+    		workerName,
+    		type,
+    		state,
+    		createTime,
+    		taskIds,
+    		orderNum,
+    		batchNo,
+    		currentBatch,
+    		offset,
+    		knockingPoint
+    	)values(
+    		#{id},
+    		#{componentName},
+    		#{stationIds},
+    		#{stationNames},
+    		#{workerId},
+    		#{workerName},
+    		#{type},
+    		#{state},
+    		#{createTime},
+    		#{taskIds},
+    		#{orderNum},
+    		#{batchNo},
+    		#{currentBatch},
+    		#{offset},
+    		#{knockingPoint}
+    	)
+    </insert>
+    <!-- 根据id查找对象 -->
+    <select id="findById" parameterType="java.lang.String" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	select * from divide_history_info where id = #{value}
+    </select>
+    <!-- 更新一条数据 -->
+    <update id="update" parameterType="com.lzc.demo.model.DivideHistoryInfo">
+    	update divide_history_info set 
+    		componentName = #{componentName} ,
+    		workerId = #{workerId} ,
+    		state = #{state},
+    		devideType = #{devideType},
+    		orderNum = #{orderNum}
+    	where id = #{id}
+    </update>
+    <delete id="deleteByID" parameterType="java.lang.String">
+    	delete from divide_history_info where id = #{value}
+    </delete>
+    <delete id="deleteByTaskId" parameterType="java.lang.String">
+    	delete from divide_history_info where taskIds like CONCAT('%',#{value},'%')  
+    </delete>
+    <!-- 删除当天数据 -->
+    <delete id="deleteCurrentData">
+    	delete from divide_history_info  where date(createTime) = curdate() <![CDATA[and state <> 3]]>
+    </delete>
+    <select id="selectDivideHistory" parameterType="java.util.HashMap" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	select * from divide_history_info ORDER BY currentBatch desc,workerId asc,orderNum asc
+    </select>
+     <select id="findTotal" parameterType="com.lzc.demo.model.TaskInfo" resultType="java.lang.Integer">
+     	select count(*) from divide_history_info where 1 = 1 
+     	<if test="searchParam.componentName != null and searchParam.componentName != '' ">
+    		and componentName like '%${searchParam.componentName}%' 
+    	</if>
+    	<if test="searchParam.state != null">
+    		and state = #{searchParam.state} 
+    	</if>
+    	<if test="searchParam.workerId != null and searchParam.workerId != '' ">
+    		and workerId = #{searchParam.workerId} 
+    	</if>
+    	<if test="searchParam.currentBatch != null and searchParam.currentBatch != '' ">
+    		and currentBatch = #{searchParam.currentBatch} 
+    	</if>
+    	<if test="searchParam.type != null">
+    		and type = #{searchParam.type} 
+    	</if>
+     </select>
+    <select id="findByPage" parameterType="java.util.HashMap" resultType="com.lzc.demo.model.DivideHistoryInfo">
+    	select * from divide_history_info where 1 = 1
+    	<if test="searchParam.componentName != null and searchParam.componentName != '' ">
+    		and componentName like '%${searchParam.componentName}%'
+    	</if>
+    	<if test="searchParam.state != null">
+    		and state = #{searchParam.state} 
+    	</if>
+    	<if test="searchParam.workerId != null and searchParam.workerId != '' ">
+    		and workerId = #{searchParam.workerId} 
+    	</if>
+    	<if test="searchParam.currentBatch != null and searchParam.currentBatch != '' ">
+    		and currentBatch = #{searchParam.currentBatch} 
+    	</if>
+    	<if test="searchParam.type != null">
+    		and type = #{searchParam.type} 
+    	</if>
+    	ORDER BY currentBatch desc,workerId desc,orderNum asc
+    	
+    	limit #{pageUtil.startCount},#{pageUtil.pageSize};
+    </select>
+    <select id="downDivideHistory" parameterType="java.util.HashMap" resultType="java.util.HashMap">
+   select * from divide_history_info where 1 = 1
+    	<if test="state != null">
+    		and state = #{state}  
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and workerId = #{workerId} 
+    	</if>
+    	<if test="componentName != null and componentName != '' ">
+    		and componentName like '%${componentName}%' 
+    	</if>
+    	<if test="searchType != null">
+    		and type = #{searchType} 
+    	</if>
+    	<if test="searchBatch != null and searchBatch != '' ">
+    		and currentBatch = #{searchBatch} 
+    	</if>
+		ORDER BY workerId asc, orderNum asc,createTime asc 
+    </select>
+    <!-- 查询当前的优化后工位顺序  为了计算总代价 进行方案取舍 -->
+    <select id="selectCurrentOptimezeResult" resultType="java.lang.String">
+    	select stationIds from divide_history_info where currentBatch = 
+    	( 
+    		select MAX(currentBatch) from divide_history_info
+    	) 
+    	and orderNum > -1 
+    	ORDER BY orderNum asc 
+    </select>
+</mapper>

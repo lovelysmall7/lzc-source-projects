@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace命名空间，为了对sql语句进行隔离，方便管理 ，mapper开发dao方式，使用namespace有特殊作用 -->
+<mapper namespace="com.lzc.demo.model.TaskInfo">
+<!-- 在mapper.xml文件中配置很多的sql语句，执行每个sql语句时，封装为MappedStatement对象
+mapper.xml以statement为单位管理sql语句
+ -->
+    <!-- 根据id查询用户信息 -->
+    <!-- 
+        id：唯一标识 一个statement
+        #{}：表示 一个占位符，如果#{}中传入简单类型的参数，#{}中的名称随意
+        parameterType：输入 参数的类型，通过#{}接收parameterType输入 的参数
+        resultType：输出结果 类型，不管返回是多条还是单条，指定单条记录映射的pojo类型
+     -->
+    <select id="findAll" parameterType="com.lzc.demo.model.TaskInfo" resultType="com.lzc.demo.model.TaskInfo"> 
+    	SELECT t.*,c.type 
+    	FROM task_info t 
+    	left outer join component c on t.componentName = c.componentName
+    	where 1 = 1 
+    	<if test="componentName != null and componentName != '' ">
+    		and t.componentName = #{componentName}
+    	</if>
+    	<if test="stationName != null and stationName != '' ">
+    		and t.stationName = #{stationName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and t.workerId = #{workerId}
+    	</if>
+    	<if test="state != null">
+    		and t.state = #{state} 
+    	</if>
+    	<if test="startTime != null and startTime != '' ">
+    		and DATE_FORMAT(t.createTime,'%Y-%m-%d') >= #{startTime}
+    	</if>
+    	<if test="endTime != null and endTime != '' ">
+    		 <![CDATA[
+    			and DATE_FORMAT(t.createTime,'%Y-%m-%d') <= #{endTime}
+    		 ]]> 
+    	</if>
+    	<if test="isEmergency != null and isEmergency != '' ">
+    		and t.isEmergency = #{isEmergency}
+    	</if>
+    	order by t.componentName asc,t.taskNo asc
+    </select>
+    <!-- 查询当日最大的任务编号  -->
+    <select id="selectMaxTaskNum" resultType="java.lang.Integer">
+    	SELECT max(taskNo) FROM `task_info`
+    	where date(createTime) = curdate() ;
+    </select>
+     <select id="findAllOnCurrentDay" parameterType="com.lzc.demo.model.TaskInfo" resultType="com.lzc.demo.model.TaskInfo"> 
+    	SELECT t.*,c.type 
+    	FROM task_info t 
+    	left outer join component c on t.componentName = c.componentName
+    	where date(t.createTime) = curdate() 
+    	<if test="componentName != null and componentName != '' ">
+    		and t.componentName = #{componentName}
+    	</if>
+    	<if test="stationName != null and stationName != '' ">
+    		and t.stationName = #{stationName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and t.workerId = #{workerId}
+    	</if>
+    	<if test="checkResult != null">
+    		and t.checkResult = #{checkResult}
+    	</if>
+    	<if test="state != null">
+    		and t.state = #{state} 
+    	</if>
+    	<if test="startTime != null and startTime != '' ">
+    		and DATE_FORMAT(t.createTime,'%Y-%m-%d') >= #{startTime}
+    	</if>
+    	<if test="endTime != null and endTime != '' ">
+    		 <![CDATA[
+    			and DATE_FORMAT(t.createTime,'%Y-%m-%d') <= #{endTime}
+    		 ]]> 
+    	</if>
+    	<if test="isEmergency != null and isEmergency != '' ">
+    		and t.isEmergency = #{isEmergency}
+    	</if>
+    	order by t.orderNum asc,t.componentName asc
+    </select>
+    <select id="findUnfinishOnCurrentDay" parameterType="com.lzc.demo.model.TaskInfo" resultType="com.lzc.demo.model.TaskInfo"> 
+    	SELECT t.*,c.type 
+    	FROM task_info t 
+    	left outer join component c on t.componentName = c.componentName
+    	where date(t.createTime) = curdate()  
+    	 <![CDATA[and t.state < 3 ]]>  and workerId is null 
+    	<if test="componentName != null and componentName != '' ">
+    		and t.componentName = #{componentName}
+    	</if>
+    	<if test="stationName != null and stationName != '' ">
+    		and t.stationName = #{stationName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and t.workerId = #{workerId}
+    	</if>
+    	<if test="checkResult != null">
+    		and t.checkResult = #{checkResult}
+    	</if>
+    		 
+    	<if test="startTime != null and startTime != '' ">
+    		and DATE_FORMAT(t.createTime,'%Y-%m-%d') >= #{startTime}
+    	</if>
+    	<if test="endTime != null and endTime != '' ">
+    		 <![CDATA[
+    			and DATE_FORMAT(t.createTime,'%Y-%m-%d') <= #{endTime}
+    		 ]]> 
+    	</if>
+    	<if test="isEmergency != null and isEmergency != '' ">
+    		and t.isEmergency = #{isEmergency}
+    	</if>
+    	order by t.orderNum asc,t.componentName asc
+    </select>
+    <select id="findCurrentNotFinishList" resultType="com.lzc.demo.model.TaskInfo">
+    	SELECT t.*,c.type 
+    	FROM task_info t 
+    	left outer join component c on t.componentName = c.componentName
+    	<![CDATA[
+    		where date(t.createTime) = curdate() and t.state <> 3 order by t.taskNo asc,t.componentName asc
+    	]]> 
+    </select>
+    <insert id="insert" parameterType="com.lzc.demo.model.TaskInfo">
+    	insert into task_info (
+    		id,
+    		componentName,
+    		stationId,
+    		stationName,
+    		workerId,
+    		orderNum,
+    		state,
+    		createTime,
+    		taskNo,
+    		checkResult,
+    		remark,
+    		isEmergency
+    	)values(
+    		#{id},
+    		#{componentName},
+    		#{stationId},
+    		#{stationName},
+    		#{workerId},
+    		#{orderNum},
+    		#{state},
+    		#{createTime},
+    		#{taskNo},
+    		#{checkResult},
+    		#{remark},
+    		#{isEmergency}
+    	)
+    </insert>
+    <!-- 根据id查找对象 -->
+    <select id="findById" parameterType="java.lang.String" resultType="com.lzc.demo.model.TaskInfo">
+    	select * from task_info where id = #{value}
+    </select>
+    <!-- 更新一条数据 -->
+    <update id="update" parameterType="com.lzc.demo.model.TaskInfo">
+    	update task_info set 
+    		componentName = #{componentName} ,
+    		orderNum = #{orderNum},
+    		workerId = #{workerId} ,
+    		state = #{state},
+    		checkResult = #{checkResult},
+    		remark = #{remark},
+    		isEmergency = #{isEmergency}
+    		
+    	where id = #{id}
+    </update>
+    <delete id="deleteByID" parameterType="java.lang.String">
+    	delete from task_info where id = #{value}
+    </delete>
+    <!-- 将该零件的任务分配给某人 -->
+    <update id="divitionComponentToPerson" parameterType="com.lzc.demo.model.TaskInfo">
+    	update task_info set workerId = #{workerId},state = 1
+    	 where date(createTime) = curdate() and componentName = #{componentName}  
+    </update>
+    <!-- 查询当日所有未分配的任务包含的零件数目 -->
+    <select id="getComponentNumOnCurrentDay" parameterType="java.util.HashMap" resultType="java.lang.Integer">
+    	select count(componentName) from (select DISTINCT componentName from task_info where date(createTime) = curdate() and state=0) t
+    </select>
+    <select id="findFirstComponentStation" parameterType="java.util.HashMap" resultType="com.lzc.demo.model.TaskInfo">
+    	select t.componentName,
+		    	t.stationName,
+		    	t.workerId 
+		    	from task_info t
+				where date(t.createTime) = curdate() 
+				and t.orderNum in 
+				<!-- 这个子查询语句是查出每个零件的最小序号 -->
+				(SELECT min(orderNum) FROM `task_info` where date(createTime) = curdate() and state=1 GROUP BY componentName ORDER BY componentName asc)
+				ORDER BY componentName asc
+    </select>
+    <!-- 查当日任务中包含的所有的零件 -->
+    <select id="selectTaskComponent" resultType="java.lang.String">
+    	SELECT componentName FROM `task_info` where date(createTime) = curdate() GROUP BY componentName
+    </select>
+    <!-- 查当日该零件涉及的所有工位 -->
+    <select id="getStationByComponent" parameterType="java.lang.String" resultType="java.lang.String">
+    	select stationName from task_info where componentName = #{value} and date(createTime) = curdate()
+    </select>
+    <!-- 查询当日所有的任务涉及的工位（无重复） -->
+    <select id="selectTaskStation" resultType="java.util.HashMap">
+    	SELECT 
+		t.stationName,
+		s.xAxis x,
+		s.yAxis y
+		FROM `task_info` t 
+		left outer join station_info s on s.id = t.stationName 
+		where t.stationName in (select DISTINCT(tt.stationName) from task_info tt) 
+		and date(t.createTime) = curdate() 
+    </select>
+    <!-- 查询某天top10 的盘点零件数人员 -->
+    <select id="selectPersonComponent" parameterType="java.lang.String" resultType="java.util.HashMap">
+   	     select t.*,w.`name` from 
+   	     	(select count(*) as componentNum,workerId from divide_history_info d 
+				where  date_format(createTime,'%Y-%m-%d')=#{value} and d.state = 3
+				GROUP BY d.workerId
+			) t
+			left outer join worker_info w on t.workerId = w.id
+			ORDER BY t.componentNum desc
+    </select>
+    <select id="findTotal" parameterType="com.lzc.demo.model.TaskInfo" resultType="java.lang.Integer">
+    	select count(id) from task_info t where 1 = 1 
+    	<if test="searchParam.componentName != null and searchParam.componentName != '' ">
+    		and t.componentName = #{searchParam.componentName}
+    	</if>
+    	<if test="searchParam.stationName != null and searchParam.stationName != '' ">
+    		and t.stationName = #{searchParam.stationName}
+    	</if>
+    	<if test="searchParam.workerId != null and searchParam.workerId != '' ">
+    		and t.workerId = #{searchParam.workerId}
+    	</if>
+    	<if test="searchParam.checkResult != null">
+    		and t.checkResult = #{searchParam.checkResult}
+    	</if>
+    	<if test="searchParam.state != null">
+    		and t.state = #{searchParam.state} 
+    	</if>
+    	<if test="searchParam.startTime != null and searchParam.startTime != '' ">
+    		and DATE_FORMAT(t.createTime,'%Y-%m-%d') >= #{searchParam.startTime}
+    	</if>
+    	<if test="searchParam.endTime != null and searchParam.endTime != '' ">
+    		 <![CDATA[
+    			and DATE_FORMAT(t.createTime,'%Y-%m-%d') <= #{searchParam.endTime}
+    		 ]]> 
+    	</if>
+    	<if test="searchParam.isEmergency != null and searchParam.isEmergency != '' ">
+    		and t.isEmergency = #{searchParam.isEmergency}
+    	</if>
+    </select>
+    <select id="findByPage" parameterType="java.util.HashMap" resultType="com.lzc.demo.model.TaskInfo">
+    	select * from task_info t where 1 = 1 
+    	<if test="searchParam.componentName != null and searchParam.componentName != '' ">
+    		and t.componentName = #{searchParam.componentName}
+    	</if>
+    	<if test="searchParam.stationName != null and searchParam.stationName != '' ">
+    		and t.stationName = #{searchParam.stationName}
+    	</if>
+    	<if test="searchParam.workerId != null and searchParam.workerId != '' ">
+    		and t.workerId = #{searchParam.workerId}
+    	</if>
+    	<if test="searchParam.checkResult != null">
+    		and t.checkResult = #{searchParam.checkResult}
+    	</if>
+    	<if test="searchParam.state != null">
+    		and t.state = #{searchParam.state} 
+    	</if>
+    	<if test="searchParam.startTime != null and searchParam.startTime != '' ">
+    		and DATE_FORMAT(t.createTime,'%Y-%m-%d') >= #{searchParam.startTime}
+    	</if>
+    	<if test="searchParam.endTime != null and searchParam.endTime != '' ">
+    		 <![CDATA[
+    			and DATE_FORMAT(t.createTime,'%Y-%m-%d') <= #{searchParam.endTime}
+    		 ]]> 
+    	</if>
+    	<if test="searchParam.isEmergency != null and searchParam.isEmergency != '' ">
+    		and t.isEmergency = #{searchParam.isEmergency}
+    	</if>
+    	order by t.createTime desc,t.componentName asc
+    	limit #{pageUtil.startCount},#{pageUtil.pageSize};
+    </select>
+    <select id="ExportTaskInfo" parameterType="com.lzc.demo.model.TaskInfo" resultType="java.util.HashMap">
+    	select * from task_info t where 1 = 1 
+    	<if test="componentName != null and componentName != '' ">
+    		and t.componentName = #{componentName}
+    	</if>
+    	<if test="stationName != null and stationName != '' ">
+    		and t.stationName = #{stationName}
+    	</if>
+    	<if test="workerId != null and workerId != '' ">
+    		and t.workerId = #{workerId}
+    	</if>
+    	<if test="checkResult != null">
+    		and t.checkResult = #{checkResult}
+    	</if>
+    	<if test="state != null">
+    		and t.state = #{state} 
+    	</if>
+    	<if test="startTime != null and startTime != '' ">
+    		and DATE_FORMAT(t.createTime,'%Y-%m-%d') >= #{startTime}
+    	</if>
+    	<if test="endTime != null and endTime != '' ">
+    		 <![CDATA[
+    			and DATE_FORMAT(t.createTime,'%Y-%m-%d') <= #{endTime}
+    		 ]]> 
+    	</if>
+    	<if test="isEmergency != null and isEmergency != '' ">
+    		and t.isEmergency = #{isEmergency}
+    	</if>
+    	order by t.createTime desc,t.componentName asc
+    </select>
+</mapper>

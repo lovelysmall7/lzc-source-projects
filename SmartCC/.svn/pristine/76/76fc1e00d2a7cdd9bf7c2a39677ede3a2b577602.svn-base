@@ -1,0 +1,11 @@
+package com.lzc.demo.util;
+
+public class SysStringUtil {
+	public static String formatIntegerStr(String numstr){
+		String[] aaa = numstr.split("[.]");
+		if(aaa.length > 0){
+			return aaa[0];
+		}
+		return null;
+	}
+}

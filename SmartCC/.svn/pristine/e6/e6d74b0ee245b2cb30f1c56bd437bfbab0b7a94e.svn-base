@@ -1,0 +1,405 @@
+<%@ page language="java" import="java.util.*" pageEncoding="utf-8"%>
+<%
+	String path = request.getContextPath();
+	String basePath = request.getScheme() + "://" + request.getServerName() + ":" + request.getServerPort()
+			+ path + "/";
+%>
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<base href="<%=basePath%>">
+<title>Data Analysis</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="cache-control" content="no-cache">
+<meta http-equiv="expires" content="0">
+<meta http-equiv="keywords" content="keyword1,keyword2,keyword3">
+<meta http-equiv="description" content="">
+<script type="text/javascript" src="js/echarts.min.js"></script>
+<link rel="stylesheet" type="text/css" href="css/easyui.css">
+<link rel="stylesheet" type="text/css" href="css/buttonStyle.css">
+<link rel="stylesheet" href="css/monthSlide.css" type="text/css">
+<script type="text/javascript" src="js/jquery-1.8.3.min.js"></script>
+<script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+<script type="text/javascript" src="js/jquery-form.js"></script>
+<script type="text/javascript" src="js/part2JsonData.js"></script>
+<script type="text/javascript" src="js/SmartCC_part2.js"></script>
+<script type="text/javascript" src="js/laydate.js"></script>
+<script type="text/javascript">
+	var mypie;
+	var mypie1;
+	$(document).ready(function() {
+		loadData();
+		mypie = echarts.init(document.getElementById('container'));
+		mypie.setOption(option, true);
+
+		mypie1 = echarts.init(document.getElementById('gauge'));
+		mypie1.setOption(option1, true);
+		
+		$("#uploadBtn").click(function() {
+			uploadTasks();
+		});
+		$("#checkBtn").click(function() {
+			$('#dlg').dialog('open').dialog('setTitle', 'Component Check');
+			$('#qualified').click();
+			$('#fm').form('clear');
+		});
+		$("#okBtn").click(function() {
+			//todo
+			updateTasks();
+		});
+		$("#searchBtnCom").click(function() {
+			searchComponent();
+		});
+		$("#searchBtnTop").click(function() {
+			searchTopTen();
+		});
+		$("#searchTasskBtn").click(function(){
+			searchTaskList();
+		});
+		$('#taskTable1').datagrid({
+                onClickRow: function (rowIndex, rowData) {
+                	$('#dlg1').dialog('open').dialog('setTitle', 'Show comment');
+                	$("#showComment").val(rowData.remark);
+                }
+		});
+	});
+</script>
+<style type="text/css">
+a, img {
+	border: 0;
+}
+
+.overlay {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 998;
+	width: 100%;
+	height: 100%;
+	_padding: 0 20px 0 0;
+	background: #f6f4f5;
+	display: none;
+}
+
+.showbox {
+	position: fixed;
+	top: 0;
+	left: 50%;
+	z-index: 9999;
+	opacity: 0;
+	filter: alpha(opacity = 0);
+	margin-left: -80px;
+}
+
+* html, * html body {
+	background-image: url(about:blank);
+	background-attachment: fixed;
+}
+
+* html .showbox, * html .overlay {
+	position: absolute;
+	top: expression(eval(document.documentElement.scrollTop));
+}
+
+#AjaxLoading {
+	border: 1px solid #8CBEDA;
+	color: #37a;
+	font-size: 12px;
+	font-weight: bold;
+}
+
+#AjaxLoading div.loadingWord {
+	width: 180px;
+	height: 50px;
+	line-height: 50px;
+	border: 2px solid #D6E7F2;
+	background: #fff;
+}
+
+#AjaxLoading img {
+	margin: 10px 15px;
+	float: left;
+	display: inline;
+}
+
+.dowebok {
+	list-style-type: none;
+}
+
+.dowebok li {
+	display: inline-block;
+}
+
+.dowebok li {
+	margin: 10px 0;
+}
+
+.dowebok input.labelauty+label {
+	font: 12px "Microsoft Yahei";
+}
+</style>
+</head>
+<div style="display: none">
+	<div id="dlg" class="easyui-dialog"
+		data-options="iconCls:'icon-save',closable: true,resizable:true,modal:true" style="width:340px;height:260px;padding:10px 20px;top:200px" closed="true"
+		buttons="#dlg-buttons">
+		<div class="ftitle" style="font-size: 15px"></div>
+
+		<div class="overlay"></div>
+
+		<div id="AjaxLoading" class="showbox">
+			<div class="loadingWord">
+				<img src="waiting.gif">data loading ...
+			</div>
+		</div>
+		<form id="fm" name="fm" method="post"
+			action="/SmartCC/smartCCIndex?method=uploadEmergencyTaskExcel"
+			data-options="novalidate:true" enctype="multipart/form-data">
+
+			<div style="border:5px solid white;margin-bottom:10px">
+				<div class="checkbox-group" id="qualified" style="width:115px;float:left">
+					<input type="radio" id="one" name="dan" value="Qualified"
+						checked="checked" /> <label for="one" class="compTitle">Qualified</label>
+				</div>
+				<div class="checkbox-group">
+					<input type="radio" id="two" name="dan" value="Unqualified" /> <label
+						for="two" class="compTitle">Unqualified</label>
+				</div>
+			</div>
+			<label class="datatimeTitle" style="margin-top:10px">Comment：</label>
+			<textarea id="check-comment"
+				style="width: 100%;height: 50%;overflow:hidden;margin-top:10px ">
+					</textarea>
+		</form>
+	</div>
+	<div id="dlg-buttons">
+		<a href="javascript:void(0)" id="okBtn"
+			class="easyui-linkbutton  button blue" style="width: 80px;height: 30px;">OK</a>
+		<a href="javascript:void(0)" class="easyui-linkbutton  button blue"
+			onclick="javascript:$('#dlg').dialog('close')"
+			style="width: 80px;height: 30px;">Cancel</a>
+	</div>
+</div>
+
+<div style="display: none">
+<div id="dlg1" class="easyui-dialog"
+		data-options="iconCls:'icon-save',closable: true,resizable:true,modal:true"
+		style="width:340px;height:260px;padding:10px 20px;top:200px" closed="true"
+		buttons="#dlg-buttons1">
+		<div class="ftitle" style="font-size: 15px"></div>
+
+		<div class="overlay"></div>
+
+		<div id="AjaxLoading" class="showbox">
+			<div class="loadingWord">
+				<img src="waiting.gif">data loading ...
+			</div>
+		</div>
+			<label class="datatimeTitle" style="margin-top:10px">Comment：</label>
+			<textarea id="showComment"
+				style="width: 100%;height: 80%;overflow:hidden;margin-top:10px" readonly="readonly">
+					</textarea>
+		
+	</div>
+	<div id="dlg-buttons1">
+		<a href="javascript:void(0)" class="easyui-linkbutton  button blue"
+			onclick="javascript:$('#dlg1').dialog('close')"
+			style="width: 80px;height: 30px;">Cancel</a>
+	</div>
+</div>
+<body>
+
+	<table style="width: 100%;height: 100%">
+		<tr>
+			<!-- 左侧留白 -->
+			<td style="width: 1%;height: 100%"></td>
+			<!-- 中间主体的最外层 -->
+			<td style="width: 90%;height: 100%">
+				<table style="width: 100%;height: 100%">
+					<!-- 上面的留白 -->
+					<tr style="width: 100%;height: 0.5%">
+						<td>
+							<div class="timeContainer">
+								<label class="datatimeTitle">Start Time：</label> <input
+									class="laydate-icon" id="demo" value="" style="height: 28px;"> <label
+									class="datatimeTitle" id="endTitle">End Time：</label> <input
+									class="laydate-icon" id="demo1" value="" style="height: 28px;"> <a
+									href="javascript:void(0)" id="searchBtnCom"
+									class="easyui-linkbutton button"
+									style="width: 5%;height: 28px;"> <font
+									style="font-size:13 ">Search</font>
+								</a>
+							</div>
+						</td>
+					</tr>
+					<tr style="width: 100%;height: 48%">
+						<!-- 上面的两个echarts控件 -->
+						<td>
+							<table style="width: 100%;height: 100%">
+								<tr>
+									<td class="layoutContainer" style="width: 60%;height: 30%">
+										<div id="container" style="width:100%; height:100%;"></div>
+									</td>
+									<td class="layoutContainer">
+										<div id="gauge" style="width:100%; height:100%;"></div>
+									</td>
+								</tr>
+							</table>
+						</td>
+					</tr>
+					<tr style="width: 100%;height: 46%">
+						<!-- 下面的两个datagrid -->
+						<td>
+							<table style="width: 100%;height: 100%">
+								<tr>
+									<td class="layoutContainer" style="width: 45%;height: 100%">
+										<div style="margin-bottom:1%;height: 9%">
+											<font style="font-size: 11px;font-weight:700;margin-left: 5px">Component：</font>
+											<input id="component" name="component" class="easyui-textbox" data-options="required:false" style="width: 8%;height: 28px;margin-left: 0px">
+											<font style="font-size: 11px;font-weight:700;margin-left: 0px">Part station：</font>
+											<input id="station" name="station" class="easyui-textbox" data-options="required:false" style="width: 10%;height: 28px;margin-left: 0px">
+											<font style="font-size: 11px;font-weight:700;margin-left: 0px">Choose person：</font>
+											<input id="cc" class="easyui-combobox" name="cc" 
+												data-options="
+												valueField:'id',
+						    					textField:'name',
+						    					url:'/SmartCC/smartCCIndex?method=loadWorkers',
+						    					"  
+						    					style="width:14%;height: 28px">
+						    				<font style="font-size: 11px;font-weight:700;margin-left: 0px;">Status：</font> 
+											<select  id="checkResult" class="easyui-combobox" name="checkResult" style="width:14%;height: 28px;margin-left: 0px；font-size: 11px" class="">
+													    <option value="" selected="selected" style=""> Choose one</option>
+													    <option value="-1">Unchecked</option>
+													    <option value="0">Qualified</option>
+													    <option value="1">Unqualified</option>
+											</select>
+											<a href="javascript:void(0)" id="searchTasskBtn" class="easyui-linkbutton button" style="width:9%;height:28px;margin-left:2%">
+												<font style="font-size:12px ">Search</font>
+											</a>
+											
+										</div>
+											<a href="javascript:void(0)" id="checkBtn"
+												class="easyui-linkbutton button"
+												style="width: 8%;height: 28px;margin-left:0.5%;float:left;"> 
+												<font style="font-size:12px ">Check</font>
+											</a>
+										<div style="height:80%;width:90.5%;margin-left:0.5%;float:left;">
+										<table align="center" id="taskTable1" class="easyui-datagrid"
+											title="" style="height:100%;width:100%;"
+											data-options="singleSelect:false,
+											collapsible:true,
+											url:'',
+											method:'get',
+											striped:true,
+											fitColumns:true
+											">
+											<thead>
+												<tr>
+													<th data-options="field:'ck',width:90,align:'center',checkbox:'true'">Choose</th>
+													<th data-options="field:'taskNo',width:90,align:'center'">TaskNo.</th>
+													<th data-options="field:'componentName',width:100,align:'center'">Component</th>
+													<th data-options="field:'stationName',width:90,align:'center'">Part station</th>
+													<th data-options="field:'type',width:90,align:'center'">Category</th>
+													<th data-options="field:'workerId',width:90,align:'center'">StaffNo.</th>
+													<!--  <th data-options="field:'orderNum',width:130,align:'center'">Order</th>-->
+													<th data-options="field:'createTimeStr',width:90,align:'center'">Date</th>
+													
+													<th data-options="field:'checkResult',width:90,align:'center',formatter:formatState">Status</th>
+													<th data-options="field:'remark',width:90,align:'center',formatter:formatComment">Comment</th>
+													</tr>
+											</thead>
+										</table>
+</div>
+									</td>
+									<td class="layoutContainer" style="width: 25%;height: 100%">
+									<div style="margin-bottom:2%;;height: 9%">
+										<label class="datatimeTitle">Date：</label> 
+										<input class="laydate-icon" id="demo3" value=""> 
+										<a href="javascript:void(0)" id="searchBtnTop" class="easyui-linkbutton button" style="width: 18%;height: 28px;"> <font style="font-size:13">Search</font>
+									</a>
+									</div>
+										<table align="center" id="top10Table" class="easyui-datagrid"
+											title="" style="height:80%;width: 100%;"
+											data-options="
+											singleSelect:true,
+											collapsible:true,
+											url:'',
+											striped:true,
+											fitColumns:true
+											">
+											<thead>
+												<tr>
+													<th data-options="field:'orderNum',width:60,align:'center',formatter:formatterNum">No.</th>
+													<th data-options="field:'workerId',width:100,align:'center'">Staff No.</th>
+													<th data-options="field:'name',width:80,align:'center'">Name</th>
+													<th data-options="field:'componentNum',width:120,align:'center'">ComponentNum</th>
+												</tr>
+											</thead>
+										</table>
+									</td>
+								</tr>
+							</table>
+						</td>
+					</tr>
+					<!-- 下面的留白 -->
+					<tr style="width: 100%;height: 1%">
+						<td></td>
+					</tr>
+				</table>
+			</td>
+			<!-- 右侧留白 -->
+			<td style="width: 5%;height: 100%"></td>
+		</tr>
+	</table>
+	<script type="text/javascript">
+!function(){
+	laydate.skin('molv');//切换皮肤，请查看skins下面皮肤库
+	laydate({elem: '#demo'});//绑定元素
+	laydate({elem: '#demo1'});//绑定元素
+	laydate({elem: '#demo2'});//绑定元素
+	laydate({elem: '#demo3'});//绑定元素
+}();
+
+//日期范围限制
+var start = {
+    elem: '#start',
+    format: 'YYYY-MM-DD',
+    min: laydate.now(), //设定最小日期为当前日期
+    max: '2099-06-16', //最大日期
+    istime: true,
+    istoday: false,
+    choose: function(datas){
+         end.min = datas; //开始日选好后，重置结束日的最小日期
+         end.start = datas //将结束日的初始值设定为开始日
+    }
+};
+
+var end = {
+    elem: '#end',
+    format: 'YYYY-MM-DD',
+    min: laydate.now(),
+    max: '2099-06-16',
+    istime: true,
+    istoday: false,
+    choose: function(datas){
+        start.max = datas; //结束日选好后，充值开始日的最大日期
+    }
+};
+laydate(start);
+laydate(end);
+
+
+
+//日期范围限定在昨天到明天
+laydate({
+    elem: '#hello3',
+    min: laydate.now(-1), //-1代表昨天，-2代表前天，以此类推
+    max: laydate.now(+1) //+1代表明天，+2代表后天，以此类推
+});
+</script>
+</body>
+</html>

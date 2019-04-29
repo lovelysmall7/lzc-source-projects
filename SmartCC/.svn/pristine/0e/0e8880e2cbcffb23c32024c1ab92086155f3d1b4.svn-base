@@ -1,0 +1,9 @@
+package com.lzc.demo.dao;
+
+import com.lzc.demo.model.ComponentStationMapping;
+
+public class ComponentStationMappingDao extends BaseDao<ComponentStationMapping>{
+	public ComponentStationMappingDao(){
+		setSqlNameSpace(ComponentStationMapping.class.getName());
+	}
+}

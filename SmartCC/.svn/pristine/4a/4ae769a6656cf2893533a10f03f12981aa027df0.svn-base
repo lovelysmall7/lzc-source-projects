@@ -1,0 +1,219 @@
+package com.lzc.demo.model;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.xssf.usermodel.XSSFCell;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import com.lzc.demo.dao.StationInfoDao;
+import com.lzc.demo.util.ExcelHelper;
+public class MapInfo {
+	private static MapInfo mi;
+	private MapInfo(){
+		
+	}
+	public static MapInfo getInstanse(){
+		if(mi == null){
+			mi = new MapInfo();
+		}
+		return mi;
+	}
+	//地图信息
+	private ArrayList<ArrayList<HashMap<String,Object>>> mapinfo = null;
+	
+	public void setMapInfo(ArrayList<ArrayList<HashMap<String,Object>>> mapinfo){
+		this.mapinfo = mapinfo;
+	}
+	
+	public ArrayList<ArrayList<HashMap<String,Object>>> getMapInfo(){
+		String excelPath = this.getClass().getClassLoader().getResource("/").getFile() + "map.xlsx";
+		excelPath = excelPath.substring(1,excelPath.length()); 
+		if(mapinfo == null){
+			ExcelHelper e = new ExcelHelper(excelPath);
+			mapinfo = e.loadMapInfo(excelPath);
+		}
+		return mapinfo;
+	}
+	/**
+	 * 重新加载地图
+	 */
+	public void reLoadMap(){
+		String excelPath = this.getClass().getClassLoader().getResource("/").getFile() + "map.xlsx";
+		excelPath = excelPath.substring(1,excelPath.length()); 
+		ExcelHelper e = new ExcelHelper(excelPath);
+		mapinfo = e.loadMapInfo(excelPath);
+	}
+	/**
+	 * 修改内存中的map信息 重新加载地图太慢 所以改为直接在内存中修改 2018-03-16 lizc优化
+	 */
+	public void ChangeMemoryMapInfo(String x,String y,String type,String number){
+		Integer xInt = Integer.parseInt(x);
+		Integer yInt = Integer.parseInt(y);
+		ArrayList<HashMap<String,Object>> rInfo = mapinfo.get(yInt - 1);//坐标从1开始，数组从0开始  所以需要坐标值-1 y轴数据对应为excel行索引
+		HashMap<String,Object> cInfo = rInfo.get(xInt - 1);
+		cInfo.put("colType", type);
+		if("0".equals(type)){
+			cInfo.put("colValue", "#");
+		}
+		if("2".equals(number) || "3".equals(number)){
+			cInfo.put("colValue", number);
+		}
+	}
+	/**
+	 * 更改地图excel文件
+	 * 实际上就是添加障碍或移除障碍
+	 * 
+	 * @param row
+	 * @param col
+	 * @param optCode A：在指定坐标添加一个障碍 D：从指定坐标移除一个障碍
+	 * @throws Exception 
+	 */
+	public void changeMapByCoordinate(int row,int col,String optCode) throws Exception{
+		String excelPath = this.getClass().getClassLoader().getResource("/").getFile() + "map.xlsx";
+		excelPath = excelPath.substring(1,excelPath.length()); 
+		FileInputStream excelFileInputStream = new FileInputStream(excelPath);
+		// XSSFWorkbook 就代表一个 Excel 文件
+		// 创建其对象，就打开这个 Excel 文件
+		XSSFWorkbook workbook = new XSSFWorkbook(excelFileInputStream);
+		// 输入流使用后，及时关闭！这是文件流操作中极好的一个习惯！
+		excelFileInputStream.close();
+		// XSSFSheet 代表 Excel 文件中的一张表格
+		// 我们通过 getSheetAt(0) 指定表格索引来获取对应表格
+		// 注意表格索引从 0 开始！
+		XSSFSheet sheet = workbook.getSheetAt(0);
+		XSSFRow targetrow = sheet.getRow(row - 1);
+		XSSFCell nameCell = targetrow.getCell(col - 1);
+		if("A".equals(optCode)){
+			nameCell.setCellValue("#");
+		}
+		if("D".equals(optCode)){
+			nameCell.setCellValue(".");
+		}
+		FileOutputStream excelFileOutPutStream = new FileOutputStream(excelPath);
+		workbook.write(excelFileOutPutStream);
+		excelFileOutPutStream.flush();
+		// 使用后，及时关闭这个输出流对象， 好习惯，再强调一遍！
+		excelFileOutPutStream.close();
+	}
+	/**
+	 * 根据工位/柱子号 将该工位/柱子 删除
+	 * 1从station_info 中删除
+	 * 2从excel 工位sheet 中删除
+	 * @param number
+	 */
+	public void removeStation(String number)throws Exception{
+		String excelPath = this.getClass().getClassLoader().getResource("/").getFile() + "map.xlsx";
+		excelPath = excelPath.substring(1,excelPath.length()); 
+		FileInputStream excelFileInputStream = new FileInputStream(excelPath);
+		// XSSFWorkbook 就代表一个 Excel 文件
+		// 创建其对象，就打开这个 Excel 文件
+		XSSFWorkbook workbook = new XSSFWorkbook(excelFileInputStream);
+		// 输入流使用后，及时关闭！
+		excelFileInputStream.close();
+		// XSSFSheet 代表 Excel 文件中的一张表格
+		// 我们通过 getSheetAt(0) 指定表格索引来获取对应表格
+		// 注意表格索引从 0 开始！
+		XSSFSheet sheet = workbook.getSheetAt(1);
+		//先从数据库将该记录删除
+		StationInfoDao dao = new StationInfoDao();
+		dao.deleteByID(number);
+		for (int i = 1; i < sheet.getLastRowNum(); i++) {
+			// XSSFRow 代表一行数据
+			XSSFRow row = sheet.getRow(i);
+			if (row == null) {
+				continue;
+			}
+			XSSFCell nameCell = row.getCell(0); // 工位名称列
+			String stationName = nameCell.getStringCellValue();
+			if(number.equals(stationName)){
+				int rowNum = sheet.getLastRowNum();
+				sheet.shiftRows(i+1, rowNum, -1);
+				FileOutputStream excelFileOutPutStream = new FileOutputStream(excelPath);
+				workbook.write(excelFileOutPutStream);
+				excelFileOutPutStream.flush();
+				// 使用后，及时关闭这个输出流对象
+				excelFileOutPutStream.close();
+				break;
+			}
+		}
+	}
+	/**
+	 * 插入一条工位信息
+	 * 1插入station_info 表
+	 * 2插入excel 工位 sheet
+	 * @param x 横坐标
+	 * @param y 纵坐标
+	 * @param number
+	 */
+	public void addOneStation(String x,String y,String number,String type)throws Exception{
+		String excelPath = this.getClass().getClassLoader().getResource("/").getFile() + "map.xlsx";
+		//String excelPath ="D:/map.xlsx";
+		excelPath = excelPath.substring(1,excelPath.length()); 
+		FileInputStream excelFileInputStream = new FileInputStream(excelPath);
+		// XSSFWorkbook 就代表一个 Excel 文件
+		// 创建其对象，就打开这个 Excel 文件
+		XSSFWorkbook workbook = new XSSFWorkbook(excelFileInputStream);
+		// 输入流使用后，及时关闭！这是文件流操作中极好的一个习惯！
+		excelFileInputStream.close();
+		// XSSFSheet 代表 Excel 文件中的一张表格
+		// 我们通过 getSheetAt(0) 指定表格索引来获取对应表格
+		// 注意表格索引从 0 开始！
+		XSSFSheet sheet = workbook.getSheetAt(1);
+		if("2".equals(type)){
+			type = "0";
+		}
+		if("3".equals(type)){
+			type = "1";
+		}
+		// ------ 创建一行新的数据 ----------//
+		// 指定行索引，创建一行数据, 行索引为当前最后一行的行索引 + 1
+		int currentLastRowIndex = sheet.getLastRowNum();
+		int newRowIndex = currentLastRowIndex + 1;
+		XSSFRow newRow = sheet.createRow(newRowIndex);
+		// 开始创建并设置该行每一单元格的信息，该行单元格的索引从 0 开始
+		int cellIndex = 0;
+		// 创建一个单元格，设置其内的数据格式为字符串，并填充内容，其余单元格类同
+		XSSFCell numberCell = newRow.createCell(cellIndex++, Cell.CELL_TYPE_STRING);
+		numberCell.setCellValue(number);
+		XSSFCell xCell = newRow.createCell(cellIndex++, Cell.CELL_TYPE_STRING);
+		xCell.setCellValue(x);
+		XSSFCell yCell = newRow.createCell(cellIndex++, Cell.CELL_TYPE_STRING);
+		yCell.setCellValue(y);
+		XSSFCell typeCell = newRow.createCell(cellIndex++, Cell.CELL_TYPE_STRING);
+		typeCell.setCellValue(type);
+		FileOutputStream excelFileOutPutStream = new FileOutputStream(excelPath);
+		workbook.write(excelFileOutPutStream);
+		excelFileOutPutStream.flush();
+		// 使用后，及时关闭这个输出流对象， 好习惯，再强调一遍！
+		excelFileOutPutStream.close();
+		//在数据库中插入一条工位信息
+		StationInfoDao dao = new StationInfoDao();
+		StationInfo s = new StationInfo();
+		s.setId(number);
+		s.setType(Integer.parseInt(type));
+		s.setCreateTime(new Date());
+		s.setxAxis(x);
+		s.setyAxis(y);
+		s.setRowNum(y);
+		s.setCelNum(x);
+		s.setStationName(number);
+		dao.insert(s);
+	}
+	public static void main(String[] args){
+		try {
+			//MapInfo.getInstanse().changeMapByCoordinate(1,1,"D");
+			//MapInfo.getInstanse().removeStation("44_001_1");
+			MapInfo.getInstanse().addOneStation("111","222","ffff","1");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+}

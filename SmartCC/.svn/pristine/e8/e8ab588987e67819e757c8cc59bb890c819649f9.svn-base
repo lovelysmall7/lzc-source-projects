@@ -1,0 +1,335 @@
+<%@ page language="java" import="java.util.*" pageEncoding="utf-8"%>
+<%
+String path = request.getContextPath();
+String basePath = request.getScheme()+"://"+request.getServerName()+":"+request.getServerPort()+path+"/";
+%>
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+  <head>
+    <base href="<%=basePath%>">
+    
+    <title>Data config</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta http-equiv="pragma" content="no-cache">
+	<meta http-equiv="cache-control" content="no-cache">
+	<meta http-equiv="expires" content="0">    
+	<meta http-equiv="keywords" content="keyword1,keyword2,keyword3">
+	<meta http-equiv="description" content="This is my page">
+	<script type="text/javascript" src="js/echarts.min.js"></script>
+	<link rel="stylesheet" type="text/css" href="css/easyui.css">
+	<link rel="stylesheet" type="text/css" href="js/themes/default/pagination.css">
+	<script type="text/javascript" src="js/jquery-1.8.3.min.js"></script>
+	<script type="text/javascript" src="js/jquery.easyui.min.js"></script>
+	<script type="text/javascript">
+		$(document).ready(function(){
+			loadStations("");
+			$('#workerTable').datagrid({
+				title:'Worker list',
+				singleSelect:false,
+				idField:'id',
+				method:'get',
+				fitColumns:true,
+				striped:true,
+				url:'/SmartCC/dataConfig',
+				queryParams:{
+					method:"loadWorkers"
+				},
+				columns:[[
+					{field:'id',align:'center',title:'Staff No',width:300},
+					{field:'name',align:'center',title:'Name',width:300},
+					{field:'groupName',align:'center',title:'Group name',width:300},
+					{field:'areaName',align:'center',title:'Area',width:300},
+					{field:'createTimeStr',align:'center',title:'Creation time',width:300}
+					
+				]]
+			});
+			
+			
+			$('#areaTable').datagrid({
+				title:'Area list',
+				singleSelect:true,
+				idField:'id',
+				method:'get',
+				fitColumns:true,
+				striped:true,
+				url:'/SmartCC/dataConfig',
+				queryParams:{
+					method:"loadAreaList",
+					loadType:"datagrid"
+				},
+				columns:[[
+					{field:'areaName',align:'center',title:'Area name',width:300},
+					{field:'createTimeStr',align:'center',title:'Creation time',width:300}
+					
+				]],
+				onBeforeEdit:function(index,row){
+					row.editing = true;
+					updateActions(index);
+				},
+				onAfterEdit:function(index,row){
+					row.editing = false;
+					updateActions(index);
+				},
+				onCancelEdit:function(index,row){
+					row.editing = false;
+					updateActions(index);
+				},
+				onClickRow: function (rowIndex)  
+			    {  
+			      var row = $('#areaTable').datagrid('getSelected');  
+			      var areaId = row.id;
+			      $.post("/SmartCC/dataConfig",
+					{
+						"areaId":areaId,
+						"method":"loadStations"
+					}
+					, function(data) {
+						$('input[name="header"]').each(function(){ 
+							$(this).attr("checked",false);
+						}); 
+						//响应后移除遮罩层
+						var stations = data.stations;
+						
+						for(var i = 0;i < stations.length;i++){
+							var mvalue = stations[i].mappingValue;
+							//alert(mvalue);
+								$('input[name="header"]').each(function(){ 
+								//alert($(this).val());
+								if($(this).val() == mvalue){
+									$(this).attr("checked","checked");
+								}
+							}); 
+						}
+						
+					}, "json");
+			    }  
+			});
+			
+			
+			
+			$('#groupTable').datagrid({
+				title:'Group list',
+				singleSelect:false,
+				idField:'id',
+				method:'get',
+				fitColumns:true,
+				striped:true,
+				url:'/SmartCC/dataConfig',
+				queryParams:{
+					method:"loadGroupList"
+				},
+				columns:[[
+					{field:'groupName',align:'center',title:'Group name',width:300},
+					{field:'createTimeStr',align:'center',title:'Creation time',width:300}
+					
+				]],
+				onBeforeEdit:function(index,row){
+					row.editing = true;
+					updateActions(index);
+				},
+				onAfterEdit:function(index,row){
+					row.editing = false;
+					updateActions(index);
+				},
+				onCancelEdit:function(index,row){
+					row.editing = false;
+					updateActions(index);
+				},
+				onClickRow: function (rowIndex)  
+			    {  
+			     	
+			    }  
+			});
+			
+			
+		});
+		
+		
+		
+		function loadStations(areaId){
+			$.post("/SmartCC/dataConfig",
+		{
+			"areaId":areaId,
+			"method":"loadStations"
+		}
+		, function(data) {
+			//响应后移除遮罩层
+			var stations = data.stations;
+				for(var i=0 ;i<stations.length;i++){ //几个人有几个checkbox
+	                  $("#stationsTD").append("<input type='checkbox'  style='zoom:130%;' onclick='onClickHander(this)' class='input_agreement_protocol' value='"+stations[i].mappingValue+"' name='header'/>"+stations[i].mappingValue);
+	           }
+			}, "json");
+		}
+		function aaa(){
+			
+		}
+		function setCheckBoxChecked(obj){
+			
+		}
+		//checkbox 点击事件
+		function onClickHander(){
+			var headers = "";
+           	$('input[name="header"]:checked').each(function(i){
+              if(0==i){
+                  headers = $(this).val();
+              }else{
+                  headers+= (","+$(this).val());
+              }
+           });
+           alert(headers);
+		}
+	</script>
+	<style>
+		a, img {
+			border: 0;
+		}
+		
+		.overlay {
+			position: fixed;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			z-index: 998;
+			width: 100%;
+			height: 100%;
+			_padding: 0 20px 0 0;
+			background: #f6f4f5;
+			display: none;
+		}
+		
+		.showbox {
+			position: fixed;
+			top: 0;
+			left: 50%;
+			z-index: 9999;
+			opacity: 0;
+			filter: alpha(opacity = 0);
+			margin-left: -80px;
+		}
+		
+		* html, * html body {
+			background-image: url(about:blank);
+			background-attachment: fixed;
+		}
+		
+		* html .showbox, * html .overlay {
+			position: absolute;
+			top: expression(eval(document.documentElement.scrollTop));
+		}
+		
+		#AjaxLoading {
+			border: 1px solid #8CBEDA;
+			color: #37a;
+			font-size: 12px;
+			font-weight: bold;
+		}
+		
+		#AjaxLoading div.loadingWord {
+			width: 180px;
+			height: 50px;
+			line-height: 50px;
+			border: 2px solid #D6E7F2;
+			background: #fff;
+		}
+		
+		#AjaxLoading img {
+			margin: 10px 15px;
+			float: left;
+			display: inline;
+		}
+		
+		.dowebok {
+			list-style-type: none;
+		}
+		
+		.dowebok li {
+			display: inline-block;
+		}
+		
+		.dowebok li {
+			margin: 10px 0;
+		}
+		
+		.dowebok input.labelauty+label {
+			font: 12px "Microsoft Yahei";
+		}
+		
+		<!--遮罩层的css代码-->
+		*{margin:0;padding:0;list-style-type:none;}
+		a,img{border:0;}
+		.demo{margin:100px auto 0 auto;width:400px;text-align:center;font-size:18px;}
+		.demo .action{color:#3366cc;text-decoration:none;font-family:"微软雅黑","宋体";}
+		
+		.overlay{position:fixed;top:0;right:0;bottom:0;left:0;z-index:998;width:100%;height:100%;_padding:0 20px 0 0;background:#f6f4f5;display:none;}
+		.showbox{position:fixed;top:0;left:50%;z-index:9999;opacity:0;filter:alpha(opacity=0);margin-left:-80px;}
+		*html,*html body{background-image:url(about:blank);background-attachment:fixed;}
+		*html .showbox,*html .overlay{position:absolute;top:expression(eval(document.documentElement.scrollTop));}
+		#AjaxLoading{border:1px solid #8CBEDA;color:#37a;font-size:12px;font-weight:bold;}
+		#AjaxLoading div.loadingWord{width:180px;height:50px;line-height:50px;border:2px solid #D6E7F2;background:#fff;}
+		#AjaxLoading img{margin:10px 15px;float:left;display:inline;}
+		.l-btn-text{
+			font-size: 9;
+		}
+		td { border:1px solid #0094ff; }
+		
+	</style>
+  </head>
+  
+  <body>
+    <table style="width: 100%;height: 100%">
+		<tr>
+			<!-- 左侧留白 -->
+			<td style="width: 4%;height: 100%;"></td>
+			<!-- 中间主体的最外层 -->
+			<td style="width: 90%;height: 100%;">
+				<table style="width: 100%;height: 100%">
+					<!-- 上面的留白 -->
+					<tr style="width: 100%;height: 7%;">
+						<td>
+							<div>
+									<!-- <a class="logo" href="###" onclick="reLoad();return false;"><img alt="" src="images/bmwlogo.png" style="width: 4%;" class="logo"></a> -->
+									<font style="font-size: 24px;color:#333;font-weight: 500;margin-top: 5%">Data configuration</font>
+								</div>
+						</td>
+					</tr>
+					<!-- 中间主体 -->
+					<tr style="width: 100%;height: 90%;">
+						<td style="width: 100%;height: 100%">
+							<table style="width: 100%;height: 100%">
+								<!-- 上面的数据配置 -->
+								<tr style="width: 100%;height: 43%;">
+									<td style="width: 30%;">
+										<table align="center" id="areaTable" style="width:100%;height: 100%"></table>
+									</td>
+									<td id="stationsTD" style="width: 70%;" valign="top">
+										
+									</td>
+								</tr>
+								<!-- 下面的数据配置 -->
+								<tr style="width: 100%;height: 57%;">
+									<td style="width: 30%;">
+										<table align="center" id="groupTable" style="width:100%;height: 100%"></table>
+									</td>
+									<td style="width: 70%;">
+										<table align="center" id="workerTable" style="width:100%;height: 100%"></table>
+									</td>
+								</tr>
+							</table>
+						</td>
+					</tr>
+					<!-- 下方留白 -->
+					<tr style="width: 100%;height: 5%">
+						<td>
+							
+						</td>
+					</tr>
+				</table>
+			</td>
+			<!-- 右侧留白 -->
+			<td style="width: 6%;height: 100%;"></td>
+		</tr>
+	</table>
+  </body>
+</html>

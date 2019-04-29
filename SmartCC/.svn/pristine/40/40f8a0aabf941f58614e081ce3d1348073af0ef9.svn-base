@@ -1,0 +1,300 @@
+package com.lzc.demo.controller.dataconfig;
+
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.springframework.util.StringUtils;
+
+import com.lzc.demo.controller.BaseServlet;
+import com.lzc.demo.dao.AreaInfoDao;
+import com.lzc.demo.dao.AreaInfoMappingDao;
+import com.lzc.demo.dao.GroupInfoDao;
+import com.lzc.demo.dao.WorkerInfoDao;
+import com.lzc.demo.model.AreaInfo;
+import com.lzc.demo.model.AreaInfoMapping;
+import com.lzc.demo.model.GroupInfo;
+import com.lzc.demo.model.TaskInfo;
+import com.lzc.demo.model.WorkerInfo;
+import com.lzc.demo.util.MydateUtil;
+import com.lzc.demo.util.SysStringUtil;
+
+import net.sf.json.JSONArray;
+
+@WebServlet("/dataConfig")
+public class DataConfigController extends BaseServlet{
+	/**
+	 * load area info
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+	public void loadAreaList(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		AreaInfoDao aDao = new AreaInfoDao();
+		List<AreaInfo> areaList = aDao.findAll();
+		for(int i = 0;i < areaList.size();i++){
+			AreaInfo ttt = areaList.get(i);
+			ttt.setCreateTimeStr(sdf.format(ttt.getCreateTime()));
+		}
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		result.put("code", 0);
+		result.put("rows", areaList);
+		writeToView(response, result);
+	}
+	/**
+	 * load group info
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void loadGroupList(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		GroupInfoDao gDao = new GroupInfoDao();
+		List<GroupInfo> groupList = gDao.findAll();
+		for(int i = 0;i < groupList.size();i++){
+			GroupInfo ttt = groupList.get(i);
+			ttt.setCreateTimeStr(sdf.format(ttt.getCreateTime()));
+		}
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		result.put("code", 0);
+		result.put("rows", groupList);
+		writeToView(response, result);
+	}
+	public void loadGroupListForCom(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		GroupInfoDao gDao = new GroupInfoDao();
+		List<GroupInfo> groupList = gDao.findAll();
+		for(int i = 0;i < groupList.size();i++){
+			GroupInfo ttt = groupList.get(i);
+			ttt.setCreateTimeStr(sdf.format(ttt.getCreateTime()));
+		}
+		String dataJson = JSONArray.fromObject(groupList).toString();
+		writeToView(response, dataJson);
+	}
+	/**
+	 * load station info
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void loadStations(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		AreaInfoMappingDao amDao = new AreaInfoMappingDao();
+		String areaId = request.getParameter("areaId");
+		HashMap<String,Object> param = new HashMap<String,Object>();
+		List<HashMap<String,Object>> stationList = null;
+		if(!StringUtils.isEmpty(areaId)){
+			param.put("areaId", areaId);
+			stationList = amDao.selectStationsByAreaId(param);
+		}
+		else{
+			stationList = amDao.selectAllAreaStations(null);
+		}
+		result.put("code", 0);
+		result.put("stations", stationList);
+		writeToView(response, result);
+	}
+	/**
+	 * load workers info
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	
+	public void loadWorkers(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		WorkerInfoDao wDao = new WorkerInfoDao();
+		AreaInfoDao aDao = new AreaInfoDao();
+		HashMap<String,Object> param = new HashMap<String,Object>();
+		List<HashMap<String,Object>> workerList = wDao.selectWorkerFullInfo(param);
+		for(int i = 0;i < workerList.size();i++){
+			HashMap<String,Object> ttt = workerList.get(i);
+			ttt.put("createTimeStr", (sdf.format(ttt.get("createTime"))));
+			String areaId = (String) ttt.get("areaId");
+			String areaName = "";
+			String[] areaIds = areaId.split(",");
+			for(int j = 0;j < areaIds.length;j++){
+				AreaInfo ai = aDao.findById(areaIds[j]);
+				if(ai != null){
+					if(j == 0){
+						areaName += ai.getAreaName();
+					}
+					else{
+						areaName += "," + ai.getAreaName();
+					}
+				}
+			}
+			ttt.put("areaName", areaName);
+		}
+		result.put("code", 0);
+		result.put("rows", workerList);
+		writeToView(response, result);
+	}
+	/**
+	 * reConfig the areaMappingInfo 
+	 * @param request
+	 * @param response
+	 * @throws ServletException
+	 * @throws IOException
+	 */
+	public void updateAreaStationsMapping(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		AreaInfoMappingDao amDao = new AreaInfoMappingDao();
+		String areaId = request.getParameter("areaId");
+		String headers = request.getParameter("headers");
+		
+		if(StringUtils.isEmpty(areaId)){
+			return;
+		}
+		//delete the area-station config info what configed before
+		amDao.deleteByAreaId(areaId);
+		if(StringUtils.isEmpty(headers)){
+			return;
+		}
+		//the str pattern:station1,station2.station3......
+		String[] stationsArr = headers.split(",");//format the station from front to an Array
+		for(int i = 0;i < stationsArr.length;i++){
+			String station = stationsArr[i];//get every station from the array
+			AreaInfoMapping ainfo = new AreaInfoMapping();
+			ainfo.setId(UUID.randomUUID().toString());
+			ainfo.setCreateTime(new Date());
+			ainfo.setAreaId(areaId);
+			ainfo.setMappingValue(station);
+			ainfo.setMappingType(0);
+			if(!StringUtils.isEmpty(station)){
+				if(SysStringUtil.judgeContainsStr(station)){
+					ainfo.setMappingType(1);
+				}
+			}
+			amDao.insert(ainfo);//insert a new mapping info to database
+		}
+		result.put("code", 0);
+		writeToView(response, result);
+	}
+	public void loadAreaInfoByWorkerId(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		WorkerInfoDao wDao = new WorkerInfoDao();
+		AreaInfoDao aDao = new AreaInfoDao();
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		List<AreaInfo> areaList = aDao.findAll();// get All areainfo in database
+		String workerId = request.getParameter("workerId");
+		if(StringUtils.isEmpty(workerId)){
+			result.put("areaList", areaList);
+			result.put("code", 0);
+			writeToView(response, result);
+			return;
+		}
+		
+		
+		WorkerInfo winfo = wDao.findById(workerId);
+		String areaIds = winfo.getAreaId();
+		
+		
+		
+		if(!StringUtils.isEmpty(areaIds)){
+			String[] areaIdArr = areaIds.split(",");
+			for(int m = 0;m < areaList.size();m++){
+				String areaId_0 = areaList.get(m).getId();
+				for(int i = 0;i < areaIdArr.length;i++){
+					String areaId = areaIdArr[i];
+					if(areaId.equals(areaId_0)){
+						areaList.get(m).setChecked(1);// set it checked
+					}
+				}
+			}
+			
+			result.put("areaList", areaList);
+		}
+		result.put("code", 0);
+		writeToView(response, result);
+	}
+	public void editWorkerInfo(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		WorkerInfoDao wDao = new WorkerInfoDao();
+		String wid = request.getParameter("wid");
+		String workerId = request.getParameter("workerId");
+		String name = request.getParameter("name");
+		String groupId = request.getParameter("groupId");
+		String areaCheck = request.getParameter("areaCheck");
+		if(wid == null){//add new one
+			WorkerInfo winfo = new WorkerInfo();
+			winfo.setId(workerId);
+			winfo.setAreaId(areaCheck);
+			winfo.setGroupId(groupId);
+			winfo.setCreateTime(new Date());
+			winfo.setName(name);
+			wDao.insert(winfo);
+			result.put("code", 0);
+			writeToView(response, result);
+			return;
+		}
+		//edit worker info
+		WorkerInfo winfo = wDao.findById(workerId);//find the person from database
+		winfo.setAreaId(areaCheck);
+		winfo.setGroupId(groupId);
+		if(wDao.update(winfo)){
+			result.put("code", 0);
+		}
+		else{
+			result.put("code", 1);
+			result.put("msg", "System error.");
+		}
+		writeToView(response, result);
+	}
+	public void addArea(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		String areaName = request.getParameter("areaName");
+		AreaInfo ai = new AreaInfo();
+		AreaInfoDao aDao = new AreaInfoDao();
+		ai.setId(UUID.randomUUID().toString());
+		ai.setAreaName(areaName);
+		ai.setCreateTime(new Date());
+		if(aDao.insert(ai)){
+			result.put("code", 0);
+		}
+		else{
+			result.put("code", 1);
+			result.put("msg", "System error.");
+		}
+		writeToView(response, result);
+	}
+	public void addGroup(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException {
+		HashMap<String,Object> result = new HashMap<String,Object>();
+		String groupName = request.getParameter("groupName");
+		GroupInfo gi = new GroupInfo();
+		GroupInfoDao gDao = new GroupInfoDao();
+		gi.setId(UUID.randomUUID().toString());
+		gi.setGroupName(groupName);
+		gi.setCreateTime(new Date());
+		if(gDao.insert(gi)){
+			result.put("code", 0);
+		}
+		else{
+			result.put("code", 1);
+			result.put("msg", "System error.");
+		}
+		writeToView(response, result);
+	}
+}

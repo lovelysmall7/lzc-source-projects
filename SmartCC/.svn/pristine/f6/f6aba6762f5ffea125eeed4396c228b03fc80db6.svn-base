@@ -1,0 +1,65 @@
+package com.lzc.demo.test;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Date;
+
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+
+import com.lzc.demo.dao.ComponentDao;
+import com.lzc.demo.dao.StationInfoDao;
+import com.lzc.demo.model.Component;
+import com.lzc.demo.model.StationInfo;
+import com.lzc.demo.util.PropertiesUtil;
+import com.lzc.demo.util.SqlMapInitUtil;
+
+public class Test {
+	public void change(String S,String Tstr){
+		StationInfoDao sDao = new StationInfoDao();
+		StationInfo sInfo = sDao.findById(S);
+		if(sInfo != null){
+			String x = sInfo.getxAxis();
+			String y = sInfo.getyAxis();
+			String[] a = Tstr.split(",");
+			for(int i = 0;i < a.length;i++){
+				String station = a[i];
+				StationInfo info = sDao.findById(station);
+				if(info != null){
+					info.setxAxis(x);
+					info.setyAxis(y);
+					sDao.update(info);
+					System.out.println(station + " 更新成功！ ");
+				}
+				else{
+					System.out.println("t: << " + station + " 数据库中不存在！");
+					StationInfo insertInfo = new StationInfo();
+					insertInfo.setId(station);
+					insertInfo.setStationName(station);
+					insertInfo.setCreateTime(new Date());
+					insertInfo.setType(1);
+					insertInfo.setxAxis(x);
+					insertInfo.setyAxis(y);
+					sDao.insert(insertInfo);
+					System.out.println(station + " 插入数据库成功！");
+				}
+			}
+		}
+		else{
+			System.out.println("S : << " + S + " 数据库中不存在！" );
+		}
+	}
+	/**
+	 * @param args
+	 */
+	public static void main(String[] args) {
+		
+		//String p = PropertiesUtil.props.getProperty("pythonPath");
+		//System.out.println(p);
+		new Test().change("I132","S87,S90");
+		
+	}
+
+}

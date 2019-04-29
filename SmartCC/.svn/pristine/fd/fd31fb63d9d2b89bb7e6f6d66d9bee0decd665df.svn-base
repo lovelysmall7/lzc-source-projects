@@ -1,0 +1,328 @@
+//基于准备好的dom，初始化echarts实例
+var myGauge;
+var myPie;
+function view(){
+	window.open('/SmartCC/viewpath.html', '_blank').location;
+}
+//-------------------------------------------------------------------------
+//页面初始化加载数据
+function loadData(){
+	$(".overlay").css({'display':'block','opacity':'0.8'});
+	$(".showbox").stop(true).animate({'margin-top':'300px','opacity':'1'},200);
+	$.post( "/SmartCC/smartCCIndex", {"aaa":"aaa","method":"loadData"},function (data){
+		//响应后移除遮罩层
+		$(".showbox").stop(true).animate({'margin-top':'250px','opacity':'0'},400);
+		$(".overlay").css({'display':'none','opacity':'0'});
+		if(data.code == 0){
+			$('#taskTable').datagrid('loadData', data.tList);
+			$('#divideResult').datagrid('loadData', data.dList);
+			
+			myPie = echarts.init(document.getElementById('container'));
+			
+			option1.series = data.series;
+			option1.yAxis.data = data.categories;
+    		// 使用刚指定的配置项和数据显示图表。
+    		var opt = option1.series[0];
+        	// 使用刚指定的配置项和数据显示图表。
+       		
+    		myPie.setOption(option1,true);
+    		
+    		myGauge = echarts.init(document.getElementById('gauge'));
+    		option2.series[0].data[0].value = data.sNum;
+    		myGauge.setOption(option2,true);
+		}
+	},"json" );
+}
+//提交分配
+function submitScheme(){
+	var isManual = $('#isManual').prop('checked');
+	var rows= $('#tt').datagrid('getSelections');
+	var taskRows = $('#taskTable').datagrid('getSelections');
+		var workersJson = JSON.stringify(rows);
+		var taskRowJson = JSON.stringify(taskRows);
+		$(".overlay").css({'display':'block','opacity':'0.8'});
+		$(".showbox").stop(true).animate({'margin-top':'300px','opacity':'1'},200);
+		$.post( "/SmartCC/smartCCIndex", 
+			{ 
+				//method:"submitScheme_003",
+				method:"submitScheme",
+				workersJson: workersJson,
+				isManual:isManual,
+				taskRowJson:taskRowJson,
+				isAuto:'1'
+			},function (data){
+				//响应后移除遮罩层
+				$(".showbox").stop(true).animate({'margin-top':'250px','opacity':'0'},400);
+				$(".overlay").css({'display':'none','opacity':'0'});
+			if(data.code == 0){
+				//alert("Distribution success");
+				$.messager.show({ // show error message
+					title : 'Message',
+					msg : "Distribution success."
+				});
+				$('#tt').datagrid('reload');
+				$('#taskTable').datagrid('loadData', data.data);
+				$('#divideResult').datagrid('loadData', data.data1);
+				option1.series = data.series; 
+				option1.yAxis.data = data.categories;
+	    		// 使用刚指定的配置项和数据显示图表。
+	    		myPie.setOption(option1,true);
+	    		option2.series[0].data[0].value = data.sNum;
+	    		myGauge.setOption(option2,true);
+			}
+			else{
+				$.messager.show({ // show error message
+					title : 'Message',
+					msg : data.msg
+				});
+			}
+		},"json" );
+}
+/**
+查询分配结果
+**/
+function searchDivisionResult(){
+	var searchWorker = $("#cc").combobox('getValue');
+	var searchState = $("#searchState").combobox('getValue');
+	$.post( "/SmartCC/smartCCIndex", 
+	{ 
+		searchWorker: searchWorker,
+		searchState:searchState,
+		method:'searchDivideResult'
+	},
+	function (data){
+		if(data.code == 0){
+			$('#divideResult').datagrid('loadData', data.data);
+		}
+	},"json" );
+}
+function searchPersonByGroup(){
+	var searchGroup = $("#searchGroup").combobox('getValue');
+	$.post( "/SmartCC/smartCCIndex", 
+			{ 
+				loadType:'datagrid',
+				searchGroup: searchGroup,
+				method:'loadWorkers'
+			},
+			function (data){
+				$('#tt').datagrid('loadData', data);
+	},"json" );
+}
+function getRowIndex(target){
+	var tr = $(target).closest('tr.datagrid-row');
+	return parseInt(tr.attr('datagrid-row-index'));
+}
+//编辑
+function editrow(target){
+	$('#tt').datagrid('beginEdit', getRowIndex(target));
+}
+function deleterow(target){
+	$.messager.confirm('Confirm','Are you sure?',function(r){
+		if (r){
+			$('#tt').datagrid('deleteRow', getRowIndex(target));
+		}
+	});
+}
+//点击保存
+function saverow(target){
+	$('#tt').datagrid('endEdit', getRowIndex(target));
+}
+function updateActions(index){
+	$('#tt').datagrid('updateRow',{
+		index: index,
+		row:{}
+	});
+}
+
+function cancelrow(target){
+	$('#tt').datagrid('cancelEdit', getRowIndex(target));
+}
+
+function formatOper(val,row,index){ 
+	if(row.state == 1){
+		return '<a href="####" onclick="updateState('+index+');return false;">Start</a>';  
+	} 
+	else if(row.state == 2){
+		return '<a href="####" onclick="updateState('+index+');return false;">Finish</a>';  
+	}
+	else{
+		return '';
+	}
+} 
+function updateState(index){
+	if(index != -1){
+		$('#divideResult').datagrid('selectRow',index);// 关键在这里  
+	}
+	
+	var rows= $('#divideResult').datagrid('getSelections');
+	var dataJson = JSON.stringify(rows);
+	$.post( "/SmartCC/smartCCIndex", { dataJson:dataJson,method:'changeState'},function (data){
+			if(data.code == 0){
+				$('#taskTable').datagrid('loadData', data.data);
+				$('#divideResult').datagrid('loadData', data.data1);
+				$('#tt').datagrid('loadData', data.data2);
+				option1.series = data.series;
+				option1.yAxis.data = data.categories;
+	    		// 使用刚指定的配置项和数据显示图表。
+	    		myPie.setOption(option1,true);
+	    		option2.series[0].data[0].value = data.sNum;
+	    		myGauge.setOption(option2,true);
+			}
+		},"json" );
+}
+function deleteDivision(index){
+	if(index != -1){
+		$('#divideResult').datagrid('selectRow',index);// 关键在这里  
+	}
+	var rows= $('#divideResult').datagrid('getSelections');
+	var dataJson = JSON.stringify(rows);
+	$.post( "/SmartCC/smartCCIndex", { dataJson:dataJson,method:'deleteDivision'},function (data){
+			if(data.code == 0){
+				$('#taskTable').datagrid('loadData', data.data);
+				$('#divideResult').datagrid('loadData', data.data1);
+				$('#tt').datagrid('loadData', data.data2);
+				option1.series = data.series;
+				option1.yAxis.data = data.categories;
+	    		// 使用刚指定的配置项和数据显示图表。
+	    		myPie.setOption(option1,true);
+	    		option2.series[0].data[0].value = data.sNum;
+	    		myGauge.setOption(option2,true);
+			}
+		},"json" );
+}
+//格式化每一行的状态列
+function formatterState(val,row){
+	if(val == 0){
+		return "<span style='color: red'>UnAssigned</span>" 
+	}
+	if(val == 1){
+		return "<span style='color: orange'>Assigned</span>" 
+	}
+	if(val == 2){
+		return "<span style='color: blue'>In progress</span>" 
+	}
+	if(val == 3){
+		return "<span style='color: green'>Completed</span>" 
+	}
+}
+function downLoad(){
+	var searchWorker = $("#cc").combobox('getValue');
+	var searchState = $("#searchState").combobox('getValue');
+	document.getElementById("downLoadBtn").href="/SmartCC/smartCCIndex?method=ExportDivideHistoryInfo&searchWorker=" + searchWorker + "&searchState=" +　searchState;
+}
+function reLoad(){
+	window.location.reload()
+}
+/**
+     添加一条紧急任务
+**/		
+function addEmergency(){
+	$('#dlg').dialog('close'); // close the dialog
+	$(".overlay").css({'display':'block','opacity':'0.8'});
+	$(".showbox").stop(true).animate({'margin-top':'300px','opacity':'1'},200);
+	$('#fm').ajaxSubmit({
+		data:{
+			
+		},
+		success:function (data) {
+			//响应后移除遮罩层
+			$(".showbox").stop(true).animate({'margin-top':'250px','opacity':'0'},400);
+			$(".overlay").css({'display':'none','opacity':'0'});
+			if(data.code == 0){
+				$.messager.show({ // show error message
+					title : 'Message',
+					msg : "Insert success."
+				});
+				
+				loadData();
+			}	
+		}
+	});
+}	
+//上传excel加载任务列表
+function uploadTasks(){
+	var fileBoxValue = $('#fileBox').textbox('getValue');
+	if(fileBoxValue == ""){
+		$.messager.show({ // show error message
+			title : 'Message',
+			msg : "Please choose a Excel to upload."
+		});
+		//alert("");
+		return;
+	}
+	/*$.messager.confirm('Be careful','This operation will cover the data of the current task,continue?',function(r){
+	    if(!r){
+	      return;
+	    }  
+	});*/
+	$(".overlay").css({'display':'block','opacity':'0.8'});
+	$(".showbox").stop(true).animate({'margin-top':'300px','opacity':'1'},200);
+	$('#demoForm').ajaxSubmit({
+	data:{
+		
+	},
+	success:function (data) {
+			//响应后移除遮罩层
+			$(".showbox").stop(true).animate({'margin-top':'250px','opacity':'0'},400);
+			$(".overlay").css({'display':'none','opacity':'0'});
+		     $('#taskTable').datagrid('loadData', data.data);
+		     $("#tt").datagrid('loadData',data.wList);
+		     $('#divideResult').datagrid('loadData', data.dList);
+			option1.series = data.series;
+			option1.yAxis.data = data.categories;
+	   		// 使用刚指定的配置项和数据显示图表。
+	   		myPie.setOption(option1,true);
+	   		option2.series[0].data[0].value = data.sNum;
+	   		myGauge.setOption(option2,true);
+	   		
+	   		
+		 }
+	});
+}
+//初始化加载人员列表
+function loadPersonList(){
+	//加载人员列表
+			$('#tt').datagrid({
+				title:'',
+				singleSelect:false,
+				idField:'id',
+				method:'post',
+				fitColumns:true,
+				striped:true,
+				url:'/SmartCC/smartCCIndex',
+				queryParams:{
+					method:"loadWorkers",
+					loadType:"datagrid"
+				},
+				columns:[[
+					{field:'dh',align:'center',title:'choose',checkbox:'true',width:100},
+					{field:'id',align:'center',title:'Staff No.',width:300},
+					{field:'name',align:'center',title:'Name',width:300}
+					
+				]],
+				onBeforeEdit:function(index,row){
+					row.editing = true;
+					updateActions(index);
+				},
+				onAfterEdit:function(index,row){
+					row.editing = false;
+					updateActions(index);
+				},
+				onCancelEdit:function(index,row){
+					row.editing = false;
+					updateActions(index);
+				},
+				onClickRow: function (rowIndex)  
+			    {  
+			        var row = $('#tt').datagrid('getSelected');  
+			        if (row){
+						var index = $('#tt').datagrid('getRowIndex', row);
+					} else {
+						index = 0;
+					}
+					//$('#tt').datagrid('selectRow',index);
+					$('#tt').datagrid('beginEdit',index);
+					$('#tt').datagrid('endEdit', getRowIndex(index));
+			    }  
+			});//datagrid over
+}
